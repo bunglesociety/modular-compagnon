@@ -258,11 +258,11 @@ $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_flash_test" tests/smk_flash_test
 run "SMK-37 Pro flash map: allow-lists never reach the head, BTIF/USRTRIM, USR, key_mac; store layout" "$OUT/smk_flash_test"
 $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_owner_test" tests/smk_owner_test.c
 run "SMK-37 Pro store owner tag: another firmware's store cleared, ours kept, nothing else written" "$OUT/smk_owner_test"
-# Modular One SMK-37: the screen (m1_ui.c, m1_draw.c: the cat) under a script of hands; pictures in build/m1_screen
+# Modular Compagnon (Modular One on the SMK-37): the screen (m1_ui.c, m1_draw.c: the cat) under a script of hands; pictures in build/m1_screen
 python3 tools/gen_cat.py -o build/gen/cat_sprites.h >/dev/null
 $CC -O1 -w -DMODULAR_ONE=1 -DFELUCCA_SLICE=0 -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/m1_screen" tests/m1_screen.c -lm
 mkdir -p build/m1_screen && rm -f build/m1_screen/*.ppm
-run "Modular One SMK-37 screen: every clip of the cat ends on the grid, he looks, listens, sleeps at night, wakes" "$OUT/m1_screen" build/m1_screen
+run "Modular Compagnon screen: every clip of the cat ends on the grid, he looks, listens, sleeps at night, wakes" "$OUT/m1_screen" build/m1_screen
 python3 tools/fm1pkg_make.py --board smk37 build/felucca.bin build/loader/ota.bin "$OUT/smk_new.fwsc" >/dev/null
 python3 tools/fm1pkg_make.py --board smk37 "$OUT/old_app.bin" build/loader/ota.bin "$OUT/smk_old.fwsc" >/dev/null
 run "SMK-37 Pro package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table" python3 tests/smk_pkg_test.py "$OUT/smk_new.fwsc"
@@ -273,9 +273,9 @@ for m in 1 2; do                         # the MODEL=elite / mke builds of ota.c
     run "M-UPGRADE entry, SMK model $m build (MODEL=elite / mke: its own parm identity)" "$OUT/ota_test_smk_m$m" "$OUT/smk_new.fwsc"
 done
 for m in pro elite mke; do               # the packages build.sh made (BOARD=smk37 MODEL=...), when present
-    f=build/modular-one-smk37.fwsc; id="SMK-37 Pro_900"
-    [ $m = elite ] && f=build/modular-one-smk37-elite.fwsc && id="SMK-37 Elite_900"
-    [ $m = mke ] && f=build/modular-one-smk37-mke.fwsc && id="MKE-P37_900"
+    f=build/modular-compagnon-smk37.fwsc; id="SMK-37 Pro_900"
+    [ $m = elite ] && f=build/modular-compagnon-smk37-elite.fwsc && id="SMK-37 Elite_900"
+    [ $m = mke ] && f=build/modular-compagnon-smk37-mke.fwsc && id="MKE-P37_900"
     [ -f $f ] && run "SMK package $f: identity $id, stock region table" python3 tests/smk_pkg_test.py $f "$id"
 done
 $CC -DBOARD_SMK37=1 -o "$OUT/ldr_test_smk" tests/ldr_test.c

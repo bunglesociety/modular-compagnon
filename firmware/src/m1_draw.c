@@ -140,6 +140,15 @@ static struct {
     uint8_t show;
 } cap;
 
+/* the opening (5 s, a note or a touch skips it): BUNGLE SOCIETY comes down from the top, as on the FM-1's Modular
+ * One, MODULAR COMPAGNON under it; the cat asleep on the grass below, his zzz; then he wakes up */
+#define SPL_MS 5000u
+#define SPL_STOP 1700
+#define SPL_Y 34
+#define SPL_SUB_Y 58
+static struct { uint8_t on, sub, started; uint32_t t0; int16_t y; } spl = {1, 0, 0, 0, -20};
+static int32_t spl_y(int32_t t) { return t >= SPL_STOP ? SPL_Y : -14 + (SPL_Y + 14) * t / SPL_STOP; }
+
 static uint32_t m1_hash(uint32_t h, const char *t)
 {
     while (*t)
@@ -338,7 +347,13 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
                     if (STARS[k][1] == gy && !c[STARS[k][0]])
                         row[240u + STARS[k][0] * 3u + 1u] = star;
         }
-        if (gy0 < CAP_GY) {                                                  /* the words, at the top */
+        if (spl.on) {                                                        /* the opening's words */
+            int32_t oy = -(int32_t)sy0;
+            uint32_t bh = nr * 3u;
+            pf_draw(cv_px, 240u, bh, 120 - pf_width("BUNGLE SOCIETY") / 2, spl.y + oy, "BUNGLE SOCIETY", ink);
+            if (spl.sub)
+                pf_draw(cv_px, 240u, bh, 120 - pf_width("MODULAR COMPAGNON") / 2, SPL_SUB_Y + oy, "MODULAR COMPAGNON", acc);
+        } else if (gy0 < CAP_GY) {                                           /* the words, at the top */
             int32_t oy = -(int32_t)sy0;
             uint32_t bh = nr * 3u;
             if (!cap.show) {
@@ -640,6 +655,46 @@ static void m1_draw(void)
                 snow[k].x = (uint8_t)((snow[k].x + CAT_G + snow[k].dx - 1u) % CAT_G);
         }
         cat.full = 1;
+    }
+    if (spl.on) {                                                            /* the opening */
+        int32_t t, y;
+        if (!spl.started) {
+            spl.started = 1;
+            spl.t0 = now;
+            cat_play(CAT_SLEEP);
+            cat.full = 1;
+        }
+        t = (int32_t)(now - spl.t0);
+        if (t < (int32_t)SPL_MS && !(m1.notes_ms && (int32_t)(m1.notes_ms - spl.t0) > 0) &&
+            !(m1.touched != M1T_NONE && (int32_t)(m1.t_ms - spl.t0) > 300)) {
+            y = spl_y(t);
+            cat_tick();
+            if (cat.full) {
+                cat.full = 0;
+                spl.y = (int16_t)y;
+                scene_rows(0, ROOM_G);
+            } else {
+                if (y != spl.y) {                                            /* only the rows the name crosses */
+                    int32_t lo = (spl.y < y ? spl.y : y), hi = (spl.y > y ? spl.y : y) + 10;
+                    spl.y = (int16_t)y;
+                    lo = lo < 0 ? 0 : lo / 3;
+                    hi = hi < 0 ? 0 : hi / 3 + 1;
+                    if (hi > lo)
+                        scene_rows((uint32_t)lo, (uint32_t)(hi > (int32_t)ROOM_G ? ROOM_G : hi));
+                }
+                if (t >= 2300 && !spl.sub) {
+                    spl.sub = 1;
+                    scene_rows(SPL_SUB_Y / 3u, SPL_SUB_Y / 3u + 5u);
+                }
+            }
+            if (wake == 2)
+                lcd_power(2);
+            return;
+        }
+        spl.on = 0;                                                          /* the end: the room as it is, he wakes */
+        cat.full = 1;
+        cat.cap_sig = 0xFFFFFFFFu;
+        cat_play(cat_night() ? CAT_SLEEP : CAT_WAKE);
     }
     cat_think();
     {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Alexis Arakis (Bungle Society)
-"""Modular One SMK-37: one HTML page that installs the firmware from Chrome (Web MIDI, SysEx), opened from the
+"""Modular Compagnon (Modular One on the SMK-37): one HTML page that installs the firmware from Chrome (Web MIDI, SysEx), opened from the
 disk (file://), nothing sent anywhere. The package is inside the page; the way back to the stock firmware takes the
 unmodified official SMK-37 Elite V016 file, checked by its SHA-256 before anything is written. The install itself is
 Felucca's web installer (web/fm1pkg.js, web/fm1ota.js: the same protocol as tools/fm1_install.py).
@@ -27,13 +27,13 @@ def product_of(raw):
 
 
 PAGE = r"""<!doctype html>
-<!-- SPDX-License-Identifier: GPL-3.0-only. Modular One SMK-37 (Alexis Arakis, Bungle Society), on Felucca by
+<!-- SPDX-License-Identifier: GPL-3.0-only. Modular Compagnon (Alexis Arakis, Bungle Society), on Felucca by
      Leo Kuroshita (Hügelton Instruments). The package holds three JieLi AC79 SDK files (Apache-2.0). -->
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Modular One SMK-37</title>
+<title>Modular Compagnon</title>
 <style>
   :root { --bg: #f6ecda; --ink: #26211d; --soft: #7a6d60; --acc: #e07a3a; --card: #fffaf1; --bad: #b8432f; }
   @media (prefers-color-scheme: dark) {
@@ -63,8 +63,8 @@ PAGE = r"""<!doctype html>
 </head>
 <body>
 <main>
-  <h1>Modular One SMK-37</h1>
-  <p class="lead">Le firmware du chat, pour le M-VAVE SMK-37 Elite. Cette page s'utilise dans Chrome, depuis ton ordinateur : rien n'est envoyé sur internet.</p>
+  <h1>Modular Compagnon</h1>
+  <p class="lead">Le firmware du chat (Modular One sur le M-VAVE SMK-37 Elite). Cette page s'utilise dans Chrome, depuis ton ordinateur : rien n'est envoyé sur internet.</p>
 
   <div class="card">
     <h2>1. Vérifier le clavier</h2>
@@ -74,9 +74,9 @@ PAGE = r"""<!doctype html>
   </div>
 
   <div class="card">
-    <h2>2. Installer Modular One</h2>
+    <h2>2. Installer Modular Compagnon</h2>
     <p>Pendant l'écriture (environ 2 minutes) : ne débranche pas le câble, ne touche pas au clavier, ne ferme pas la page. Le clavier redémarre tout seul à la fin.</p>
-    <button id="go" disabled>Installer Modular One</button>
+    <button id="go" disabled>Installer Modular Compagnon</button>
   </div>
 
   <div class="card">
@@ -92,7 +92,7 @@ PAGE = r"""<!doctype html>
   <p id="status"></p>
   <pre id="log"></pre>
   <p class="small">Si l'écriture s'arrête en route (câble, veille de l'ordinateur...) : le clavier reste en mode mise à jour. Rebranche-le et appuie de nouveau sur le même bouton, l'écriture reprend.</p>
-  <p class="small">Modular One SMK-37, Alexis Arakis (Bungle Society), sur Felucca de Leo Kuroshita (Hügelton Instruments). GPL-3.0, sans garantie. Le paquet contient trois fichiers du SDK JieLi AC79 (Apache-2.0). M-VAVE et SMK-37 sont des marques de leurs propriétaires.</p>
+  <p class="small">Modular Compagnon, Alexis Arakis (Bungle Society), sur Felucca de Leo Kuroshita (Hügelton Instruments). GPL-3.0, sans garantie. Le paquet contient trois fichiers du SDK JieLi AC79 (Apache-2.0). M-VAVE et SMK-37 sont des marques de leurs propriétaires.</p>
 </main>
 <script>
 /*LIB*/
@@ -174,8 +174,8 @@ $("check").addEventListener("click", async () => {
     else {
       dev.link.close();
       const id = dev.id.text, ota = /^ota-/i.test(dev.id.model);
-      $("who").textContent = ota ? `${id} : le clavier est en mode mise à jour. Appuie sur « Installer Modular One » pour finir l'écriture.`
-        : id === PRODUCT ? `${id} : Modular One est installé.`
+      $("who").textContent = ota ? `${id} : le clavier est en mode mise à jour. Appuie sur « Installer Modular Compagnon » pour finir l'écriture.`
+        : id === PRODUCT ? `${id} : Modular Compagnon est installé.`
         : id === STOCK_PRODUCT ? `${id} : le firmware d'origine (version 016). Prêt pour l'installation.`
         : sameModel(dev.id.model, PRODUCT.split("_")[0]) ? `${id} : un SMK-37 Elite. Prêt pour l'installation.`
         : `${id} : ce n'est pas un SMK-37 Elite, cette page n'écrira rien dessus.`;
@@ -186,7 +186,7 @@ $("check").addEventListener("click", async () => {
 
 $("go").addEventListener("click", () => {
   if (busy) return;
-  if (!confirm("Installer Modular One sur le SMK-37 Elite ?\n\nLes réglages et presets du firmware d'origine seront perdus. Le retour à l'origine reste possible avec le fichier officiel.")) return;
+  if (!confirm("Installer Modular Compagnon sur le SMK-37 Elite ?\n\nLes réglages et presets du firmware d'origine seront perdus. Le retour à l'origine reste possible avec le fichier officiel.")) return;
   run(image, PRODUCT, "Terminé. Le chat est chez lui.");
 });
 
@@ -206,7 +206,7 @@ $("stock-file").addEventListener("change", async () => {
 
 $("stock-go").addEventListener("click", () => {
   if (busy || !stock) return;
-  if (!confirm("Remettre le firmware d'origine (SMK-37 Elite 016) ?\n\nModular One, ses réglages et ses croquis ne seront plus utilisables.")) return;
+  if (!confirm("Remettre le firmware d'origine (SMK-37 Elite 016) ?\n\nModular Compagnon, ses réglages et ses croquis ne seront plus utilisables.")) return;
   run(stock, STOCK_PRODUCT, "Terminé. Le SMK-37 est revenu à son firmware d'origine.");
 });
 </script>
