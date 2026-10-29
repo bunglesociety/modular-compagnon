@@ -2,7 +2,8 @@
  * Copyright (C) 2026 Alexis Arakis (Bungle Society) */
 /* Modular One on the SMK-37: the screen. A little black cat lives in it.
  *   the room     240 x 240: an 80 x 80 grid of 3 x 3 px cells. Old paper (a grain in it, the corners a little darker);
- *                the bottom of the screen is his floor, a round woven rug in the middle of it. Fader 1 brings the
+ *                the bottom of the screen is his floor: Modular Town's grass (its greens, a few small flowers), a
+ *                few blades in front of his paws. Fader 1 brings the
  *                night (stars come out), fader 2 the snow (the FM winter).
  *   the cat      clips of frames (cat_sprites.h, tools/gen_cat.py, 80 x 80 cells, his feet on the bottom row): he
  *                sits and breathes, listens
@@ -19,9 +20,7 @@
 #define M1_RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 #define ROOM_G 80u                               /* the room's rows (the cat's: CAT_SCENE) */
 #define CAP_GY 13u                               /* the words: grid rows 0 .. 12 (screen 0 .. 38) */
-#define RUG_X 40                                 /* the rug: an oval centred on the bottom row, 60 x 13 cells */
-#define RUG_RX 30
-#define RUG_RY2 42                               /* (6.5 rows, squared) */
+
 
 static uint8_t cat_buf[CAT_G * CAT_SCENE] __attribute__((section(".pool")));
 static struct {
@@ -204,14 +203,34 @@ static const uint8_t STARS[18][2] = {
     {5, 6}, {14, 15}, {22, 4}, {31, 10}, {44, 3}, {52, 12}, {60, 5}, {70, 9}, {76, 20}, {9, 28},
     {66, 30}, {38, 22}, {3, 44}, {74, 40}, {27, 34}, {57, 24}, {48, 40}, {18, 46},
 };
-enum { RC_WALL, RC_GRAIN, RC_RIM, RC_BAND, RC_WEFT1, RC_WEFT2, RC_N };   /* the paper; the rug: rim, band, weave */
+/* the paper; the grass (Modular Town's GREEN2 GREEN GREEN3, tools/gen_city.py) and its flowers */
+enum { RC_WALL, RC_GRAIN, RC_TIP, RC_BLADE, RC_DEEP, RC_FPINK, RC_FYEL, RC_FWHITE, RC_N };
 /* day, snow (the day whitened a little, still warm), night */
-static const uint8_t ROOM_DAY[RC_N][3] = {{0xdc, 0xca, 0xa4}, {0xd2, 0xbe, 0x97}, {0x9c, 0x5a, 0x3c},
-                                          {0xe2, 0xc6, 0x9a}, {0xc9, 0x8a, 0x52}, {0xb9, 0x7a, 0x47}};
-static const uint8_t ROOM_SNOW[RC_N][3] = {{0xe3, 0xdc, 0xc9}, {0xd9, 0xd1, 0xbd}, {0x9c, 0x5e, 0x44},
-                                           {0xe6, 0xd2, 0xb0}, {0xc9, 0x93, 0x63}, {0xba, 0x85, 0x58}};
-static const uint8_t ROOM_NIGHT[RC_N][3] = {{0x26, 0x22, 0x40}, {0x22, 0x1e, 0x3a}, {0x3a, 0x1e, 0x26},
-                                            {0x5a, 0x4c, 0x5c}, {0x4a, 0x30, 0x34}, {0x42, 0x2a, 0x30}};
+static const uint8_t ROOM_DAY[RC_N][3] = {{0xdc, 0xca, 0xa4}, {0xd2, 0xbe, 0x97}, {122, 150, 96}, {98, 128, 84},
+                                          {78, 106, 70}, {246, 200, 206}, {236, 210, 120}, {230, 230, 220}};
+static const uint8_t ROOM_SNOW[RC_N][3] = {{0xe3, 0xdc, 0xc9}, {0xd9, 0xd1, 0xbd}, {226, 228, 220}, {150, 168, 136},
+                                           {112, 132, 100}, {240, 214, 218}, {236, 222, 170}, {240, 240, 234}};
+static const uint8_t ROOM_NIGHT[RC_N][3] = {{0x26, 0x22, 0x40}, {0x22, 0x1e, 0x3a}, {0x2c, 0x3a, 0x3c}, {0x22, 0x30, 0x32},
+                                            {0x1a, 0x26, 0x2a}, {0x5a, 0x44, 0x5c}, {0x56, 0x50, 0x48}, {0x50, 0x50, 0x5c}};
+
+/* the grass, column by column: its height (5 .. 8 cells, a blade now and then 11), a flower on top of some */
+static inline uint32_t grass_h(uint32_t x)
+{
+    uint32_t h = (x * 2654435761u) >> 27;                                    /* 0 .. 31 */
+    return h < 3u ? 11u : 5u + h % 4u;
+}
+static inline uint32_t grass_kind(uint32_t x, uint32_t y)                   /* y: grid row; RC_WALL = no grass */
+{
+    uint32_t h = grass_h(x), top = ROOM_G - h, r = (x * 73856093u ^ y * 19349663u) * 0x5bd1e995u >> 28;
+    if (y < top)
+        return RC_WALL;
+    if (y == top) {
+        uint32_t f = ((x + 7u) * 2654435761u >> 20) % 23u;
+        return f == 0u ? RC_FPINK : f == 7u ? RC_FYEL : f == 15u ? RC_FWHITE : RC_TIP;
+    }
+    return y >= ROOM_G - 1u || r < 4u ? RC_DEEP : RC_BLADE;
+}
+static inline int grass_front(uint32_t x) { return ((x * 2246822519u) >> 29) < 3u; }   /* ~3 in 8 columns */
 
 static uint16_t room_col(uint32_t k, int32_t w, int32_t n)
 {
@@ -277,15 +296,11 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
                 uint16_t v;
                 e = e < ey ? e : ey;
                 lv = e < 1u ? 3u : e < 2u ? 2u : e < 4u ? 1u : 0u;           /* the corners and edges, a little darker */
-                kind = room_grain(gx, gy) ? RC_GRAIN : RC_WALL;
-                if (gy >= ROOM_G - 7u) {                                     /* the rug: rim, a light band, the weave */
-                    int32_t dx = (int32_t)gx - RUG_X, dy = (int32_t)gy - (int32_t)(ROOM_G - 1u);
-                    int32_t d = dx * dx * 1000 / (RUG_RX * RUG_RX) + dy * dy * 1000 / RUG_RY2;
-                    if (d <= 1000)
-                        kind = d > 800 ? RC_RIM : d > 700 ? RC_BAND : ((gx + gy) & 3u) < 2u ? RC_WEFT1 : RC_WEFT2;
-                }
+                kind = gy >= ROOM_G - 11u ? grass_kind(gx, gy) : RC_WALL;
+                if (kind == RC_WALL)
+                    kind = room_grain(gx, gy) ? RC_GRAIN : RC_WALL;
                 v = rc[kind][lv];
-                if (c[gx])
+                if (c[gx] && !(gy >= ROOM_G - 2u && grass_front(gx)))     /* (a few blades in front of his paws) */
                     v = pal[c[gx]];
                 row[gx * 3u] = row[gx * 3u + 1u] = row[gx * 3u + 2u] = v;
             }
@@ -351,7 +366,7 @@ static void cat_think(void)
     if (c == CAT_SLEEP || c == CAT_ENDORT) {                                 /* asleep: playing, a touch or the day */
         if (playing || touched || cat.night < 48) {
             cat_play(CAT_WAKE);
-            cat.next_life = now + 20000u;
+            cat.next_life = now + 10000u;
         }
         return;
     }
@@ -375,7 +390,7 @@ static void cat_think(void)
         return;
     }
     if (!cat.next_life)
-        cat.next_life = now + 12000u;
+        cat.next_life = now + 6000u;
     if ((int32_t)(now - cat.next_life) < 0)
         return;
     if (M1G[M1G_CAT] % 3u == 2u && !cat_night()) {                          /* SAGE: he only sits (and sleeps at night) */
@@ -388,8 +403,8 @@ static void cat_think(void)
         cat_play(cat_rand(2) ? CAT_BAILLEMENT : CAT_ENDORT);
     else
         cat_play(CAT_DAY_LIFE[cat_rand(sizeof CAT_DAY_LIFE)]);
-    cat.next_life = M1G[M1G_CAT] % 3u == 1u ? now + 60000u + cat_rand(120000u)   /* CALME: every 1 .. 3 min */
-                                            : now + 15000u + cat_rand(25000u);  /* VIVANT: 15 .. 40 s */
+    cat.next_life = M1G[M1G_CAT] % 3u == 1u ? now + 20000u + cat_rand(30000u)   /* CALME: every 20 .. 50 s */
+                                            : now + 5000u + cat_rand(10000u);   /* VIVANT: 5 .. 15 s */
 }
 
 /* the next step of the clip when its time comes: decoded, and its rows drawn */

@@ -204,7 +204,7 @@ int main(int argc, char **argv)
             life(k);
     for (k = 0; k < 40u; k++) { fm1_in.fader[0] = (uint8_t)(127 - k * 127 / 39); run(60); }   /* nightfall */
     cat.next_life = fm1_ms;
-    run(14000);
+    run(30000);
     if (cat.clip != CAT_SLEEP) { printf("m1_screen: FAIL not asleep at night (clip %u)\n", cat.clip); fails++; }
     for (k = 0; k < 30u; k++) { fm1_in.fader[1] = (uint8_t)(k * 110 / 29); run(60); }     /* winter */
     run(4000);

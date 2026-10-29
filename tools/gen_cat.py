@@ -319,9 +319,9 @@ clip("PLAY", [(notes(sit("happy", tail=(-1, -0.5, 0, 0.5, 1, 0.5, 0, -0.5)[i]), 
 clip("SLEEP", [(zzz(loaf("content", breath=1 if (i // 6) % 2 else 0), 1 + (i // 4) % 3), 160) for i in range(24)], 1)
 clip("WAKE", [(loaf("content"), 200), (sit("wide", flat=1), 160), (sit("wide"), 300), (sit("open"), 400)])
 
-fr = [(sit("half" if i < 30 else "content", paws=(3, 0) if (i // 3) % 2 else (0, 3), tail=math.sin(i / 4) * 0.5), 110) for i in range(40)]
+fr = [(sit("half" if i < 75 else "content", paws=(3, 0) if (i // 3) % 2 else (0, 3), tail=math.sin(i / 4) * 0.5), 110) for i in range(96)]
 clip("PETRIR", fr)
-fr = [(sit("open"), 110)] * 12 + [(sit("content" if i in (14, 15, 30, 31) else "open", "mlem", tail=math.sin(i / 5) * 0.4), 110) for i in range(40)] + [(sit("open"), 110)] * 6
+fr = [(sit("open"), 110)] * 12 + [(sit("content" if i in (14, 15, 30, 31) else "open", "mlem", tail=math.sin(i / 5) * 0.4), 110) for i in range(72)] + [(sit("open"), 110)] * 6
 clip("MLEM", fr)
 fr = [(sit("half"), 140)] * 6 + [(sit("half", nod=n), 140) for n in (1, 2, 3, 4)] + [(sit("content", nod=n), 140) for n in (4, 5, 5, 5, 5, 5)]
 fr += [(sit("wide"), 140)] * 2 + [(sit("half"), 140)] * 6 + [(sit("content", nod=n), 140) for n in (1, 2, 3, 4, 5, 6, 6)]
@@ -337,13 +337,13 @@ for s_ in [4, 4, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1]:
     fr += [(side(cx=40, facing=f, tail_to_head=True, phase=j % 2, eyes="wide"), 90) for j in range(s_)]; f = -f
 fr += [(sit("squeeze", tilt=(0.15, 0, -0.15, 0)[i % 4]), 90) for i in range(10)] + [(sit("happy"), 90)] * 6
 clip("QUEUE", fr)
-fr = [(sit("open"), 110)] * 6 + [(cello(lick=1 if (i // 3) % 2 else 0), 110) for i in range(30)] + [(cello(0, "open"), 110)] * 10 + [(sit("content"), 110)] * 6
+fr = [(sit("open"), 110)] * 6 + [(cello(lick=1 if (i // 3) % 2 else 0), 110) for i in range(84)] + [(cello(0, "open"), 110)] * 10 + [(sit("content"), 110)] * 6
 clip("CELLO", fr)
 fr, path = [], [(62, 58), (63, 57), (65, 58), (64, 59), (66, 58)]
 for i in range(16):
     bx, by_ = path[(i // 3) % len(path)]
     fr.append((bug(sit("open", look=1, tilt=(0, 0.22, 0.22, 0, -0.22, -0.22)[(i // 3) % 6]), bx, by_, i), 100))
-for i in range(18):
+for i in range(30):
     c = side(cx=34, crouch=4, tail_up=0.2); dx = (-1, 0, 1, 0)[i % 4]
     c.m = {((x + dx) if x < 26 else x, y): k for (x, y), k in c.m.items()}
     fr.append((bug(c, 64, 58, i), 100))
@@ -364,18 +364,18 @@ for i in range(30):
 fr += [(sit("open"), 300)]
 clip("TAPOTE", fr)
 fr = []
-for i in range(40):
+for i in range(110):
     k = i % 10
-    if i < 24: fr.append((sit("content", "tongue" if k in (2, 3, 7, 8) else "w", paw=(31, 44 - (1 if k < 5 else 0)), tilt=0.08), 110))
+    if i % 40 < 24: fr.append((sit("content", "tongue" if k in (2, 3, 7, 8) else "w", paw=(31, 44 - (1 if k < 5 else 0)), tilt=0.08), 110))
     else:
-        a = (i - 24) / 16 * math.tau * 1.5
+        a = (i % 40 - 24) / 16 * math.tau * 1.5
         fr.append((sit("content", paw=(29 + 2 * math.cos(a), 36 + 3 * math.sin(a)), tilt=0.08, ear=-1 if k < 5 else 0), 110))
 clip("TOILETTE", fr)
 fr = [(sit("open"), 110)] * 8 + [(side(cx=40, crouch=3, eyes="content"), 110)] * 4
-fr += [(back(wiggle=(-1, 0, 1, 0)[i % 4]), 110) for i in range(24)] + [(side(cx=40, crouch=3, eyes="content"), 110)] * 4 + [(sit("happy"), 110)] * 8
+fr += [(back(wiggle=(-1, 0, 1, 0)[i % 4]), 110) for i in range(48)] + [(side(cx=40, crouch=3, eyes="content"), 110)] * 4 + [(sit("happy"), 110)] * 8
 clip("ROULADE", fr)
 fr = [(side(cx=24 + i * 2.6, phase=i % 2, facing=1), 110) for i in range(14)]
-fr += [(marks(up(reach=(-2, 0, 2, 0)[i % 4]), min(3, i // 8 + 1)), 110) for i in range(30)]
+fr += [(marks(up(reach=(-2, 0, 2, 0)[i % 4]), min(3, i // 16 + 1)), 110) for i in range(64)]
 fr += walk(60, 40, -1) + [(sit("open"), 300)]
 clip("GRIFFES", fr)
 seq = [(x, 1) for x in range(-14, 100, 7)] + [(x, -1) for x in range(100, -20, -8)]
@@ -383,7 +383,7 @@ fr = [(dust(side(cx=x, phase=i % 2, facing=f, tail_up=1.5), [x - f * 14, x - f *
 fr += [(C(), 80)] * 8 + walk(-20, 38, 1, 4, 80) + [(sit("happy"), 80)] * 8
 clip("FOLIE", fr)
 fr = [(side(cx=38 - i * 3, phase=i % 2, facing=-1), 100) for i in range(7)]
-fr += [(hearts(rub(push=(0, 1, 2, 1)[(i // 2) % 4]), min(3, i // 10 + 1)), 110) for i in range(36)]
+fr += [(hearts(rub(push=(0, 1, 2, 1)[(i // 2) % 4]), min(3, i // 18 + 1)), 110) for i in range(64)]
 fr += walk(20, 38, 1) + [(sit("happy"), 300)]
 clip("TERRITOIRE", fr)
 fr = [(sit("open"), 110)] * 10 + [(sit("squeeze", "o", flat=1, tilt=-0.08), 110)] * 14 + [(sit("content", tail=math.sin(i / 3)), 110) for i in range(16)]
