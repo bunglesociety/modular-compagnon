@@ -53,7 +53,6 @@ static void padled_set(uint32_t p, uint8_t r, uint8_t g, uint8_t b) { (void)p; (
 static void fm1_led_key(uint32_t k, int on) { (void)k; (void)on; }
 static void apply_preset_to(track_t *t, uint32_t pi) { host_preset(t, ENGI_VILLE, pi); }
 static volatile uint8_t smk_modw;
-static volatile int16_t smk_bend14;
 static void fm1_irq_off(void) {}
 static void fm1_irq_on(void) {}
 static volatile uint8_t smk_vel_curve;
@@ -180,6 +179,7 @@ static void life(uint32_t clip)
     }
 }
 
+#ifndef M1_SCREEN_NO_MAIN                               /* (tests/m1_shots.c: the same harness, its own scenes) */
 int main(int argc, char **argv)
 {
     uint32_t k;
@@ -267,3 +267,4 @@ int main(int argc, char **argv)
     printf("m1_screen: %s\n", fails ? "FAIL" : "ok");
     return fails != 0;
 }
+#endif

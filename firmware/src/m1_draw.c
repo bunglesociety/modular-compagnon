@@ -75,22 +75,6 @@ static void pf_draw(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t 
     }
 }
 
-/* s at 1x (the diagnostics of GLOBE) */
-static void pf_draw1(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, const char *s, uint16_t c)
-{
-    for (; *s; s++) {
-        uint32_t g = (uint8_t)*s - 32u, r, k;
-        if (g >= 95u)
-            g = 0;
-        for (r = 0; r < 5u; r++)
-            for (k = 0; k < 8u; k++)
-                if ((PF_ROWS[g][r] & (0x80u >> k)) && x + (int32_t)k >= 0 && x + (int32_t)k < (int32_t)bw &&
-                    y + (int32_t)r >= 0 && y + (int32_t)r < (int32_t)bh)
-                    buf[(uint32_t)(y + (int32_t)r) * bw + (uint32_t)(x + (int32_t)k)] = c;
-        x += PF_ADV[g];
-    }
-}
-
 static void pf_rect(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
 {
     int32_t i, j;
@@ -184,12 +168,6 @@ static int m1_caption(void)
             cap.bar = m1.value;
             break;
         case M1T_VOL: str_cpy(cap.lab, "VOLUME", sizeof cap.lab); cap.bar = m1.value; break;
-        case M1T_PITCH:
-            str_cpy(cap.lab, "PITCH", sizeof cap.lab);
-            cap.val[0] = '+';
-            fmt_int(cap.val + (m1.value > 0), m1.value);
-            str_cpy(cap.val + str_len(cap.val), " CT", 4);
-            break;
         case M1T_WAVE:
             str_cpy(cap.lab, m1.what == 1u ? "ONDE 1" : "ONDE 2", sizeof cap.lab);
             str_cpy(cap.val, m1.value < 22 ? "SCIE" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "CARRE",
@@ -521,52 +499,11 @@ static void m1_globe_draw(int all)
     if (all) {
         lcd_fill(0, 0, 240, 240, G1_BG);
         g1_strip(2u, 36u, G1_BG);
-        pf_draw(cv_px, 240u, 36u, 10, 6, "REGLAGES", swap16(G1_INK));
+        pf_draw(cv_px, 240u, 36u, 10, 14, "REGLAGES", swap16(G1_INK));
         cv_blit(0, 2);
-    }
-    {   /* what sets the pitch of part 1, live (a pitch that moves by itself: which one it is) */
-        static uint32_t last;
-        const track_t *t = M1T;
-        const voice_t *v = 0;
-        uint32_t i, sig;
-        char l1[48], l2[48], *q;
-        for (i = 0; i < NVOICE; i++)
-            if (t->v[i].active && t->v[i].gate && (!v || t->v[i].age > v->age))
-                v = &t->v[i];
-#define DG(lbl, val) (str_cpy(q, lbl, 8), q += str_len(q), fmt_int(q, (int32_t)(val)), q += str_len(q), *q++ = ' ', *q = 0)
-        q = l1;
-        DG("TUNE ", song.g[G_TUNE]); DG("BND ", midi_bend_q8[0]); DG("TRN ", t->p[P_TRANS]); DG("QNT ", t->p[P_QUANT]);
-        DG("DTN ", t->p[P_E5]); DG("OCT ", song.octave);
-        q = l2;
-        DG("VOI ", t->p[P_VOICE]); DG("GLI ", t->p[P_GLIDE]); DG("LFP ", t->p[P_LD_PIT]); DG("ENP ", t->p[P_ED_PIT]);
-        DG("M ", t->p[P_M1SRC] | t->p[P_M2SRC] << 4 | t->p[P_M3SRC] << 8 | t->p[P_M4SRC] << 12);
-        if (v) {
-            DG("N ", v->note); DG("P ", v->pitch_cur - (int32_t)v->note * 16); DG("F ", v->fine);
-        }
-#undef DG
-        sig = m1_hash(m1_hash(2166136261u, l1), l2);
-        if (all || sig != last) {
-            last = sig;
-            g1_strip(208u, 32u, G1_BG);
-            pf_draw1(cv_px, 240u, 32u, 6, 6, l1, swap16(G1_DIM));
-            pf_draw1(cv_px, 240u, 32u, 6, 18, l2, swap16(G1_DIM));
-            cv_blit(0, 208);
-        }
-    }
-    {   /* the pitch wheel as read and its centre, the bend (to see a wheel that drifts) */
-        static int32_t last = -1;
-        int32_t raw = m1_pw_raw, c = m1_pw_centre, b = smk_bend14, sig = raw << 20 ^ c << 8 ^ (b >> 6);
-        if (all || sig != last) {
-            char t[32], *q = t;
-            last = sig;
-            str_cpy(q, "PW ", 4); q += 3;
-            fmt_int(q, raw); q += str_len(q); *q++ = '/';
-            fmt_int(q, c); q += str_len(q); str_cpy(q, "  BEND ", 8); q += 7;
-            fmt_int(q, b * 200 / 8191);
-            g1_strip(24u, 14u, G1_BG);                                       /* (under REGLAGES) */
-            pf_draw(cv_px, 240u, 14u, 10, 2, t, swap16(G1_DIM));
-            cv_blit(0, 24);
-        }
+        g1_strip(208u, 30u, G1_BG);
+        pf_draw(cv_px, 240u, 30u, 10, 10, "GLOBE: RETOUR", swap16(G1_DIM));
+        cv_blit(0, 208);
     }
     for (r = 0; r < G1_N; r++) {
         uint32_t v = g1_get(r) | (m1.grow == r && fm1_ms - m1.grow_ms < 3000u ? 0x100u : 0u) | (uint32_t)m1.pad << 12;
