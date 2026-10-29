@@ -234,29 +234,33 @@ static uint32_t div_samples(uint32_t div)
 static const uint8_t DIV_DOT[3] = {2, 3, 1};           /* 3 quarters >> this */
 #if MODULAR_ONE
 static volatile uint32_t m1_dly_target;   /* Modular One: the echo TIME fader, samples (0 = the tempo divisions) */
-static uint32_t m1_dly_cur = 11000u;
+static int32_t m1_dq = 11000 << 12;        /* the echo time as it runs, Q12 samples (fx_buses) */
 static volatile uint8_t m1_vintage;       /* Modular One: FX, the vintage (m1_vint) */
+static volatile uint8_t m1_la;            /* Modular One: CHORD, the A 440 to tune to (m1_tone) */
 
-/* FX, the vintage: an old tape machine, worn but not broken. On the mix, before the master (dc_block takes the
- * offset of the even harmonics):
- *   wow 0.55 Hz (+-0.1 %) and flutter 6.3 Hz (+-0.02 %): a 64-sample line read at a moving point (linear)
- *   warmth   a gentle third (-1.5 dB at full scale) and a little second, as a tape's
- *   the top  two one-poles, ~7.5 kHz and ~11 kHz: the air goes, the words stay
+/* FX, the vintage: an old cassette deck, worn. On the mix, before the master (dc_block takes the offset of the even
+ * harmonics):
+ *   wow 0.55 Hz (+-0.3 %) and flutter 6.3 Hz (+-0.06 %): a 128-sample line read at a moving point (linear)
+ *   saturation  the mix driven 1.6x into a soft third and a second, as a tape's, then back down
+ *   the top  two one-poles, ~4.5 kHz and ~7 kHz: the air goes, the words stay
+ *   hiss     a little filtered noise, about -58 dB
  * On / off fades over ~46 ms (the line keeps running, so the tape is up to speed when it comes in). */
-#define M1V_LEN 64u
-static int32_t m1v_buf[2][M1V_LEN], m1v_lp[2][2];
+#define M1V_LEN 128u
+static int32_t m1v_buf[2][M1V_LEN], m1v_lp[2][2], m1v_nz = 0x5EED1234, m1v_h;
 static uint32_t m1v_w, m1v_wow, m1v_flt, m1v_mix;          /* m1v_mix 0 .. 2048 */
 static inline int32_t m1v_warm(int32_t x)
 {
     int32_t x2, x3;
+    x = x + (x >> 1) + (x >> 3);                           /* drive 1.6x */
     x = x > 46000 ? 46000 : x < -46000 ? -46000 : x;
     x2 = (x * x) >> 15;                                    /* <= 64577 */
     x3 = ((x2 >> 1) * x) >> 14;                            /* x^3 / 32768^2 */
-    return x - x3 / 6 + (x2 >> 6);
+    x = x - x3 / 4 + (x2 >> 5);
+    return (x * 5) >> 3;                                   /* back down */
 }
 static inline void m1_vint(int32_t *l, int32_t *r)
 {
-    int32_t in[2] = {*l, *r}, k;
+    int32_t in[2] = {*l, *r}, k, h;
     uint32_t pos, i, f;
     if (m1_vintage ? m1v_mix < 2048u : m1v_mix > 0u)
         m1v_mix += m1_vintage ? 1u : (uint32_t)-1;
@@ -268,8 +272,11 @@ static inline void m1_vint(int32_t *l, int32_t *r)
         m1v_w = (m1v_w + 1u) & (M1V_LEN - 1u);
         return;
     }
-    /* the read point, 24 samples back +- 12 (wow) +- 0.4 (flutter), Q8 */
-    pos = (uint32_t)(24 * 256 + ((sine_i(m1v_wow) * 12) >> 7) + (sine_i(m1v_flt) >> 7) / 3);
+    /* the read point, 60 samples back +- 38 (wow) +- 0.7 (flutter), Q8 */
+    pos = (uint32_t)(60 * 256 + ((sine_i(m1v_wow) * 38) >> 7) + ((sine_i(m1v_flt) * 3) >> 9));
+    h = (int32_t)(noise32(&m1v_nz) >> 16) - 32768;          /* the hiss: noise, a one-pole, quiet */
+    m1v_h += (h - m1v_h) >> 2;
+    h = m1v_h >> 8;
     for (k = 0; k < 2; k++) {
         int32_t a, b, y;
         m1v_buf[k][m1v_w] = in[k];
@@ -278,9 +285,9 @@ static inline void m1_vint(int32_t *l, int32_t *r)
         a = m1v_buf[k][i];
         b = m1v_buf[k][(i - 1u) & (M1V_LEN - 1u)];
         y = a + (((b - a) >> 4) * (int32_t)f >> 4);
-        y = m1v_warm(y);
-        m1v_lp[k][0] += ((y - m1v_lp[k][0]) * 21) >> 5;       /* ~7.5 kHz */
-        m1v_lp[k][1] += ((m1v_lp[k][0] - m1v_lp[k][1]) * 26) >> 5;   /* ~11 kHz */
+        y = m1v_warm(y) + h;
+        m1v_lp[k][0] += ((y - m1v_lp[k][0]) * 15) >> 5;       /* ~4.5 kHz */
+        m1v_lp[k][1] += ((m1v_lp[k][0] - m1v_lp[k][1]) * 20) >> 5;   /* ~7 kHz */
         y = m1v_lp[k][1];
         in[k] += (((y - in[k]) >> 3) * (int32_t)m1v_mix) >> 8;
     }
@@ -288,18 +295,29 @@ static inline void m1_vint(int32_t *l, int32_t *r)
     *l = in[0];
     *r = in[1];
 }
-#define M1_VINT(l, r) m1_vint(l, r)
+/* CHORD: an A 440, a pure sine at -14 dB to tune guitars and the rest by; fades in and out over ~23 ms */
+static uint32_t m1la_ph, m1la_amp;
+static inline void m1_tone(int32_t *l, int32_t *r)
+{
+    int32_t y;
+    if (m1_la ? m1la_amp < 1024u : m1la_amp > 0u)
+        m1la_amp += m1_la ? 1u : (uint32_t)-1;
+    if (!m1la_amp)
+        return;
+    m1la_ph += 42852281u;                                    /* 440 Hz: 2^32 x 440 / 44100 */
+    y = (sine_i(m1la_ph) * (int32_t)m1la_amp) >> 12;         /* about -14 dB at full */
+    *l += y;
+    *r += y;
+}
+#define M1_VINT(l, r) (m1_vint(l, r), m1_tone(l, r))
 #else
 #define M1_VINT(l, r) ((void)0)
 #endif
 static uint32_t delay_samples(void)
 {
 #if MODULAR_ONE
-    if (m1_dly_target) {                               /* free time, gliding like a BBD clock (no click) */
-        int32_t d = (int32_t)m1_dly_target - (int32_t)m1_dly_cur;
-        m1_dly_cur = (uint32_t)((int32_t)m1_dly_cur + (d > 0 ? (d + 15) / 16 : d / 16));
-        return m1_dly_cur < 16u ? 16u : m1_dly_cur >= DLY_LEN ? DLY_LEN - 1u : m1_dly_cur;
-    }
+    if (m1_dly_target)                                 /* free time (fx_buses glides to it, sample by sample) */
+        return m1_dly_target < 16u ? 16u : m1_dly_target >= DLY_LEN - 2u ? DLY_LEN - 3u : m1_dly_target;
 #endif
     uint32_t d = (uint32_t)song.g[G_DTIME];
     uint32_t s = d - 10u < 3u ? (beat_samples() * 3u) >> DIV_DOT[d - 10u] : div_samples(d);
@@ -647,7 +665,24 @@ static void fx_buses(const int32_t *cho_in, const int32_t *dly_in, const int32_t
         }
         fx.cho_w++;
         /* delay with a low-passed feedback */
+#if MODULAR_ONE
+        {   /* Modular One: the time glides like an analog delay's (a Matriarch's): the echoes slide up or down in
+             * pitch while it travels. A lag of ~190 ms, at most 0.6 sample per sample (the pitch within an octave),
+             * read between samples */
+            int32_t d = ((int32_t)dl << 12) - m1_dq, st = d >> 13;
+            uint32_t q, ri;
+            int32_t c0, c1;
+            st = st > 2458 ? 2458 : st < -2458 ? -2458 : st != 0 ? st : d > 0 ? 1 : d < 0 ? -1 : 0;
+            m1_dq += st;
+            q = (uint32_t)m1_dq >> 4;                         /* Q8 */
+            ri = q >> 8;
+            c0 = dly_buf[(fx.dly_w - ri) & (DLY_LEN - 1u)];
+            c1 = dly_buf[(fx.dly_w - ri - 1u) & (DLY_LEN - 1u)];
+            x = c0 + (((c1 - c0) * (int32_t)(q & 255u)) >> 8);
+        }
+#else
         x = dly_buf[(fx.dly_w - dl) & (DLY_LEN - 1u)];
+#endif
         fx.dly_lp += mulq15(x - fx.dly_lp, col);
         dly_buf[fx.dly_w & (DLY_LEN - 1u)] =
             (int16_t)clamp((dly_in[i] >> 1) + mulq15(fx.dly_lp, fb), -32768, 32767);

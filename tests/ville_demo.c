@@ -82,6 +82,44 @@ int main(int argc, char **argv)
     bad |= render(dir, "night_MODULAR", 0, 127, -1, &db); printf("ville: MODULAR at night peak %.1f dBFS\n", db);
     bad |= render(dir, "winter_MODULAR", 0, -1, 127, &db); printf("ville: MODULAR in winter peak %.1f dBFS\n", db);
     bad |= render(dir, "winter_night_BRASS", 7, 127, 100, &db); printf("ville: BRASS night + winter peak %.1f dBFS\n", db);
+    {   /* the echo TIME moved while echoes run (fx.c: it glides, the echoes slide in pitch, no click): the roughest
+         * sample step while it travels against the one before, in the echoes alone */
+        track_t *t = &trk[0];
+        uint32_t f, i;
+        int32_t prev = 0, pd = 0, worst_still = 0, worst_move = 0;
+        char path[512];
+        FILE *w;
+        snprintf(path, sizeof path, "%s/echo_glide_FLUTE.wav", dir);
+        w = fopen(path, "wb");
+        host_tracks_init();
+        host_preset(t, ENGI_VILLE, 6);
+        t->p[P_LEVEL] = 100;
+        t->p[P_DLY] = 127;
+        song.g[G_DFDBK] = 80;
+        song.g[G_DMIX] = 100;
+        m1_dly_target = 441u + 40u * 257u;
+        if (w) wav_hdr(w, 8u * FS);
+        for (f = 0; f < 8u * FS; f += CTL) {
+            int32_t o[2 * CTL];
+            if (f == 0) trk_note_on(t, 69, 100);
+            if (f == FS / 2u) trk_note_off(t, 69);
+            if (f == 3u * FS) m1_dly_target = 441u + 110u * 257u;              /* the fader up, fast */
+            if (f == 5u * FS) m1_dly_target = 441u + 10u * 257u;               /* and down */
+            mix_block(o, CTL);
+            for (i = 0; i < CTL; i++) {
+                int32_t x = o[2 * i], d = x - prev, dd = abs(d - pd);
+                if (f + i > FS && f + i < 3u * FS) worst_still = dd > worst_still ? dd : worst_still;
+                if (f + i > 3u * FS && f + i < 7u * FS) worst_move = dd > worst_move ? dd : worst_move;
+                prev = x;
+                pd = d;
+                if (w) wav_put(w, o[2 * i], o[2 * i + 1]);
+            }
+        }
+        if (w) fclose(w);
+        printf("ville: echo glide, roughest step still %d, moving %d\n", worst_still, worst_move);
+        bad |= worst_move > 3 * worst_still + 200;
+        m1_dly_target = 0;
+    }
     m1_vintage = 1;                                                          /* FX: the vintage (fx.c m1_vint) */
     bad |= render(dir, "vintage_MODULAR", 0, -1, -1, &db); printf("ville: MODULAR vintage peak %.1f dBFS\n", db);
     bad |= render(dir, "vintage_FLUTE", 6, -1, -1, &db); printf("ville: FLUTE vintage peak %.1f dBFS\n", db);

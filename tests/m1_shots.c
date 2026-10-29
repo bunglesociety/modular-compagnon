@@ -52,17 +52,11 @@ int main(int argc, char **argv)
     scene(root, "folie");                                                  /* la folie */
     host_pad = 0; run(2600);
     cat_play(CAT_FOLIE); cat.quiet_since = fm1_ms; run(6000);
-    scene(root, "magneto");                                                /* the tape: a sketch kept */
-    {
-        static const uint8_t PH[6] = {0, 4, 7, 12, 7, 4};
-        uint32_t j;
-        no_shots = 1;
-        run(4500);
-        for (j = 0; j < 6u; j++) { input_on(M1T, 60u + PH[j], 90); run(250); input_off(M1T, 60u + PH[j]); run(50); }
-        run(4500);
-        no_shots = 0;
-        host_btn = 1u << M1_B_REC; host_pressed = host_btn; run(900); host_released = host_btn; host_btn = 0; run(1200);
-    }
+    scene(root, "arp");                                                    /* ARP held: its mode, its speed */
+    host_btn = 1u << 6; host_pressed = host_btn; run(300);
+    host_enc[1] = 1; run(500); host_enc[1] = 1; run(700);
+    host_enc[2] = -1; run(900);
+    host_released = host_btn; host_btn = 0; run(1500);
     scene(root, "globe");                                                  /* GLOBE */
     host_pressed = 1u << 10; run(600); host_enc[6] = 0; run(400);
     host_pressed = 1u << 10; run(300);

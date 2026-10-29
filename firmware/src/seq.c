@@ -619,7 +619,7 @@ static __attribute__((noinline)) void cin_keep(track_t *t, uint32_t note, uint32
     cin_up[i] &= (uint8_t)~(1u << k);
 }
 
-#if MODULAR_ONE
+#if 0                                               /* (Modular Compagnon: no tape recorder) */
 static void sk_put(uint32_t note, uint32_t vel);    /* the sketchbook (m1_tape.c) */
 #define M1_SK_PUT(n, v) sk_put(n, v)
 #else
@@ -1395,11 +1395,16 @@ static void smk_wheels_block(void)
 #if MODULAR_ONE
 #include "m1_tape.c"
 #endif
+#if MODULAR_ONE
+static uint32_t m1_rt_ms;                         /* the last MIDI clock heard (Modular Compagnon follows it) */
+#endif
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, seq_n = n;
 #if MODULAR_ONE
     sk_clock += n;
+    if (song.g[G_CLOCK] && fm1_ms - m1_rt_ms > 1500u)
+        song.g[G_CLOCK] = 0;                        /* the DAW's clock gone: back to our own tempo */
 #endif
     uint32_t clock_mode = (uint32_t)song.g[G_CLOCK];
     if (midi_clock.mode != clock_mode) {
@@ -1487,6 +1492,21 @@ static void events_block(uint32_t n)
         uint32_t source = midi_in_source[at] ? midi_in_source[at] : 1u, ms = midi_in_ms[at];
         mi_r++;
         if (status >= 0xF8u) {
+#if MODULAR_ONE
+            if (status != 0xFCu) {                  /* a DAW's clock (USB or TRS): follow it, without a menu */
+                m1_rt_ms = fm1_ms;
+                if (clock_mode != source) {
+                    seq_stop();
+                    memset(&midi_clock, 0, sizeof midi_clock);
+                    midi_beat_samples = 0;
+                    clock_mode = source;
+                    midi_clock.mode = (uint8_t)source;
+                    song.g[G_CLOCK] = (int16_t)source;
+                    if (status == 0xF8u)
+                        midi_clock_transport(0xFBu, ms);   /* (its Start went by while we were on our own) */
+                }
+            }
+#endif
             if (clock_mode == source) {
                 if (status == 0xF8u)
                     midi_clock_pulse(ms);

@@ -10,8 +10,8 @@
  *                when you play (eyes ^^, notes), looks at a control you touch, and when you leave him alone he lives
  *                his life (griffes on the edge of the screen, toilette, roulade, la folie, chasse, mlem, ...). At night
  *                he falls asleep; playing wakes him.
- *   the words    at the top, in the pixel letters of Modular One (Silkscreen at 2x, m1_pixfont.h): the sound, or
- *                the control touched with its value and a bar of blocks.
+ *   the words    at the top, big, in the pixel letters of Modular One (Silkscreen, m1_pixfont.h), only for a moment:
+ *                the sound when a pad picks it, the control touched (its name, its value under it, bigger).
  * Only what changed goes to the LCD: the rows the cat moved in, the words when they change; the whole room
  * when the light changes or while snow falls. GLOBE (the settings) is a page of its own, in the same letters. */
 #include "cat_sprites.h"
@@ -19,7 +19,7 @@
 
 #define M1_RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 #define ROOM_G 80u                               /* the room's rows (the cat's: CAT_SCENE) */
-#define CAP_GY 13u                               /* the words: grid rows 0 .. 12 (screen 0 .. 38) */
+#define CAP_GY 25u                               /* the words: grid rows 0 .. 24 (screen 0 .. 74) */
 
 
 static uint8_t cat_buf[CAT_G * CAT_SCENE] __attribute__((section(".pool")));
@@ -44,35 +44,49 @@ static uint32_t cat_rand(uint32_t n)
 }
 
 /* ------------------------------------------------------------ the pixel letters */
-static int32_t pf_width(const char *s)
+static int32_t pf_width_s(const char *s, int32_t sc)
 {
     int32_t w = 0;
     for (; *s; s++)
-        w += 2 * PF_ADV[((uint8_t)*s - 32u) < 95u ? (uint8_t)*s - 32u : 0u];
+        w += sc * PF_ADV[((uint8_t)*s - 32u) < 95u ? (uint8_t)*s - 32u : 0u];
     return w;
 }
+static int32_t pf_width(const char *s) { return pf_width_s(s, 2); }
 
-/* s at 2x into a buffer of bw x bh (colour as the LCD takes it: swapped), its top-left at x, y (may be outside) */
-static void pf_draw(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, const char *s, uint16_t c)
+/* s at sc x into a buffer of bw x bh (colour as the LCD takes it: swapped), its top-left at x, y (may be outside) */
+static void pf_draw_s(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, const char *s, uint16_t c,
+                      int32_t sc)
 {
     for (; *s; s++) {
-        uint32_t g = (uint8_t)*s - 32u, r, k;
+        uint32_t g = (uint8_t)*s - 32u;
+        int32_t r, k;
         if (g >= 95u)
             g = 0;
-        for (r = 0; r < 10u; r++) {
-            int32_t yy = y + (int32_t)r;
-            uint32_t bits = PF_ROWS[g][r >> 1];
+        for (r = 0; r < 5 * sc; r++) {
+            int32_t yy = y + r;
+            uint32_t bits = PF_ROWS[g][r / sc];
             if (yy < 0 || yy >= (int32_t)bh || !bits)
                 continue;
-            for (k = 0; k < 16u; k++)
-                if (bits & (0x80u >> (k >> 1))) {
-                    int32_t xx = x + (int32_t)k;
+            for (k = 0; k < 8 * sc; k++)
+                if (bits & (0x80u >> (k / sc))) {
+                    int32_t xx = x + k;
                     if (xx >= 0 && xx < (int32_t)bw)
                         buf[(uint32_t)yy * bw + (uint32_t)xx] = c;
                 }
         }
-        x += 2 * PF_ADV[g];
+        x += sc * PF_ADV[g];
     }
+}
+static void pf_draw(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, const char *s, uint16_t c)
+{
+    pf_draw_s(buf, bw, bh, x, y, s, c, 2);
+}
+/* the biggest scale, at most hi, at which s fits in w */
+static int32_t pf_fit(const char *s, int32_t w, int32_t hi)
+{
+    while (hi > 2 && pf_width_s(s, hi) > w)
+        hi--;
+    return hi;
 }
 
 static void pf_rect(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
@@ -153,14 +167,10 @@ static int m1_caption(void)
     cap.lab[0] = cap.val[0] = cap.head[0] = 0;
     cap.bar = -1;
     cap.snd = N_VILLE_MODE[M1T->p[P_E0] % VM_N];
-    cap.show = m1.touched != M1T_NONE && m1.touched != M1T_PAD && fm1_ms - m1.t_ms < 2500u;
-    if (demo_on) {                                                           /* the tape plays: its piece first */
-        cap.head[0] = '>';
-        cap.head[1] = ' ';
-        str_cpy(cap.head + 2, m1_piece(), sizeof cap.head - 2u);
-    }
+    cap.show = m1.touched != M1T_NONE && fm1_ms - m1.t_ms < 2500u;
     if (cap.show) {
         switch (m1.touched) {
+        case M1T_PAD: str_cpy(cap.lab, cap.snd, sizeof cap.lab); break;   /* the sound picked, a moment */
         case M1T_KNOB: str_cpy(cap.lab, M1_K_NAME[m1.what % M1_NK], sizeof cap.lab); cap.bar = m1.value; break;
         case M1T_FADER:
             str_cpy(cap.lab, m1.what == 1u && VM_TOWN((uint32_t)M1T->p[P_E0]) ? "MONTEE" : M1_F_NAME[m1.what & 3u],
@@ -168,6 +178,10 @@ static int m1_caption(void)
             cap.bar = m1.value;
             break;
         case M1T_VOL: str_cpy(cap.lab, "VOLUME", sizeof cap.lab); cap.bar = m1.value; break;
+        case M1T_HOLD:
+            str_cpy(cap.lab, m1.hlab ? m1.hlab : "", sizeof cap.lab);
+            str_cpy(cap.val, m1.hval, sizeof cap.val);
+            break;
         case M1T_WAVE:
             str_cpy(cap.lab, m1.what == 1u ? "ONDE 1" : "ONDE 2", sizeof cap.lab);
             str_cpy(cap.val, m1.value < 22 ? "SCIE" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "CARRE",
@@ -193,8 +207,6 @@ static int m1_caption(void)
         }
         if (!cap.lab[0])
             cap.show = 0;
-        if (cap.val[0] && pf_width(cap.lab) + pf_width(cap.val) + 14 > 220)   /* no room for both: the value */
-            str_cpy(cap.lab, cap.val, sizeof cap.lab), cap.val[0] = 0;
     }
     if (cap.bar >= 0 && !cap.val[0])                                         /* the number, as Modular One shows it */
         fmt_int(cap.val, cap.bar);
@@ -211,12 +223,12 @@ static const uint8_t STARS[18][2] = {
     {5, 6}, {14, 15}, {22, 4}, {31, 10}, {44, 3}, {52, 12}, {60, 5}, {70, 9}, {76, 20}, {9, 28},
     {66, 30}, {38, 22}, {3, 44}, {74, 40}, {27, 34}, {57, 24}, {48, 40}, {18, 46},
 };
-/* the paper; the grass (Modular Town's GREEN2 GREEN GREEN3, tools/gen_city.py) and its flowers */
+/* the paper (warm as the pads' white: the panel shows it whiter than it is); the grass (Modular Town's GREEN2 GREEN GREEN3, tools/gen_city.py) and its flowers */
 enum { RC_WALL, RC_GRAIN, RC_TIP, RC_BLADE, RC_DEEP, RC_FPINK, RC_FYEL, RC_FWHITE, RC_N };
 /* day, snow (the day whitened a little, still warm), night */
-static const uint8_t ROOM_DAY[RC_N][3] = {{0xdc, 0xca, 0xa4}, {0xd2, 0xbe, 0x97}, {122, 150, 96}, {98, 128, 84},
+static const uint8_t ROOM_DAY[RC_N][3] = {{0xd6, 0xae, 0x78}, {0xcc, 0xa2, 0x6c}, {122, 150, 96}, {98, 128, 84},
                                           {78, 106, 70}, {246, 200, 206}, {236, 210, 120}, {230, 230, 220}};
-static const uint8_t ROOM_SNOW[RC_N][3] = {{0xe3, 0xdc, 0xc9}, {0xd9, 0xd1, 0xbd}, {226, 228, 220}, {150, 168, 136},
+static const uint8_t ROOM_SNOW[RC_N][3] = {{0xdc, 0xc0, 0x98}, {0xd2, 0xb6, 0x8e}, {226, 228, 220}, {150, 168, 136},
                                            {112, 132, 100}, {240, 214, 218}, {236, 222, 170}, {240, 240, 234}};
 static const uint8_t ROOM_NIGHT[RC_N][3] = {{0x26, 0x22, 0x40}, {0x22, 0x1e, 0x3a}, {0x2c, 0x3a, 0x3c}, {0x22, 0x30, 0x32},
                                             {0x1a, 0x26, 0x2a}, {0x5a, 0x44, 0x5c}, {0x56, 0x50, 0x48}, {0x50, 0x50, 0x5c}};
@@ -255,7 +267,7 @@ static void room_ink(uint16_t *ink, uint16_t *acc, uint16_t *dim)
     const uint8_t *rgb = M1_PAD_RGB[m1.pad];
     uint16_t day = M1_RGB(0x4a, 0x38, 0x28), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
     *ink = n > 64 ? ngt : day;
-    *acc = ux_mix(pad, *ink, n > 64 ? 25 : 45);
+    *acc = n > 64 ? ux_mix(pad, *ink, 70) : M1_RGB(0x8a, 0x3c, 0x16);   /* the value: a burnt orange by day */
     *dim = ux_mix(room_col(RC_WALL, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
 }
 
@@ -285,7 +297,7 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
     room_ink(&ink, &acc, &dim);
     ink = swap16(ink);
     acc = swap16(acc);
-    dim = swap16(dim);
+    (void)dim;
     if (nflakes > 32u)
         nflakes = 32u;
     for (i = 0; i < 16u; i++)
@@ -303,7 +315,8 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
                 uint32_t e = gx < CAT_G - 1u - gx ? gx : CAT_G - 1u - gx, kind, lv;
                 uint16_t v;
                 e = e < ey ? e : ey;
-                lv = e < 1u ? 3u : e < 2u ? 2u : e < 4u ? 1u : 0u;           /* the corners and edges, a little darker */
+                lv = 0;                                                      /* (no frame: the screen's edge is his) */
+                (void)e;
                 kind = gy >= ROOM_G - 11u ? grass_kind(gx, gy) : RC_WALL;
                 if (kind == RC_WALL)
                     kind = room_grain(gx, gy) ? RC_GRAIN : RC_WALL;
@@ -331,21 +344,13 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
         } else if (gy0 < CAP_GY) {                                           /* the words, at the top */
             int32_t oy = -(int32_t)sy0;
             uint32_t bh = nr * 3u;
-            if (!cap.show) {
-                if (cap.head[0]) {
-                    pf_draw(cv_px, 240u, bh, 12, 14 + oy, cap.head, ink);
-                    pf_draw(cv_px, 240u, bh, 228 - pf_width(cap.snd), 14 + oy, cap.snd, acc);
-                } else {
-                    pf_draw(cv_px, 240u, bh, 12, 14 + oy, cap.snd, acc);
-                }
-            } else {
-                pf_draw(cv_px, 240u, bh, 12, 12 + oy, cap.lab, ink);
-                pf_draw(cv_px, 240u, bh, 228 - pf_width(cap.val), 12 + oy, cap.val, cap.bar >= 0 ? acc : ink);
-                if (cap.bar >= 0) {                                          /* a bar of blocks: 36 of 4 px */
-                    int32_t on = (cap.bar * 36 + 63) / 127, b;
-                    for (b = 0; b < 36; b++)
-                        pf_rect(cv_px, 240u, bh, 12 + b * 6, 28 + oy, 4, 4, b < on ? acc : dim);
-                }
+            if (cap.show && cap.val[0]) {                                   /* the name, the value under it, bigger */
+                int32_t s1 = pf_fit(cap.lab, 216, 4), s2 = pf_fit(cap.val, 216, 6);
+                pf_draw_s(cv_px, 240u, bh, 12, 14 + oy, cap.lab, ink, s1);
+                pf_draw_s(cv_px, 240u, bh, 12, 42 + oy, cap.val, acc, s2);
+            } else if (cap.show) {                                           /* a word alone (the sound): big */
+                int32_t s1 = pf_fit(cap.lab, 216, 6);
+                pf_draw_s(cv_px, 240u, bh, 12, 26 + oy, cap.lab, ink, s1);
             }
         }
         lcd_blit(0, sy0, 240u, nr * 3u, cv_px);
@@ -397,7 +402,7 @@ static void cat_think(void)
         return;
     }
     if (touched && (c == CAT_IDLE || c == CAT_PLAY || c == CAT_LOOK_L || c == CAT_LOOK_R)) {
-        uint32_t want = m1.touched == M1T_PAD || m1.touched == M1T_BTN ? CAT_LOOK_L : CAT_LOOK_R;
+        uint32_t want = m1.touched == M1T_PAD || m1.touched == M1T_BTN || m1.touched == M1T_HOLD ? CAT_LOOK_L : CAT_LOOK_R;
         if (c != want)
             cat_play(want);
         return;

@@ -10,6 +10,9 @@
  *   KNOB BANK / FADER BANK   WAVE 1 / WAVE 2: the next wave of the vending machines (lit where a sound has them)
  *   pitch wheel  bend (seq.c, as Felucca); mod wheel: the cutoff waves, faster as it goes up (the track LFO)
  *   OCTAVE- / +  octaves; ARP the arpeggio; SCALE the scale (snap); CHORD a chord on each key; NOTE REPEAT a
+ *                (Modular Compagnon: ARP only: a tap turns it on / off; held, K2 its mode, K3 its speed, K4 the tempo;
+ *                kept with the settings; a DAW's MIDI clock is followed by itself, seq.c. CHORD: an A 440 to tune
+ *                to, on / off. SCALE, NOTE REPEAT and the tape: nothing)
  *                1/16 repeat while held; FX the vintage (fx.c); GLOBE the settings: one knob, one setting (below)
  *   the tape     PLAY plays the sketches kept (and stops); REC held 0.6 s keeps the last phrase played (again at once:
  *                one phrase further back); < > the previous / next sketch (stopped: where PLAY starts); < and > held
@@ -30,7 +33,7 @@ static const uint8_t M1_K_PARAM[M1_NK] = {P_E3, P_E4, P_ATK, P_DEC, P_SUS, P_REL
 static const char *const M1_K_NAME[M1_NK] = {"CUTOFF", "RESO", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DETUNE"};
 
 /* what the screen shows: the last control touched (m1_draw.c) */
-enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL, M1T_TAPE };
+enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL, M1T_TAPE, M1T_HOLD };
 enum { M1_B_LEFT = 2, M1_B_RIGHT = 3, M1_B_PLAY = 16, M1_B_REC = 17 };
 static struct {
     uint8_t pad;             /* the sound's pad (hardware number) */
@@ -48,7 +51,10 @@ static struct {
     uint32_t msg_ms, rec_ms, del_ms;   /* REC pressed; < and > both held since */
     uint8_t rec_done, del_done;
     uint32_t grow_ms;
-} m1 = {.fader = {0xFF, 0xFF, 0xFF, 0xFF}, .grow = 0xFF};
+    uint8_t hold, hold_used; /* ARP / SCALE / CHORD held (0xFF none); a knob turned meanwhile */
+    const char *hlab;        /* M1T_HOLD: the words */
+    char hval[16];
+} m1 = {.fader = {0xFF, 0xFF, 0xFF, 0xFF}, .grow = 0xFF, .hold = 0xFF};
 
 /* GLOBE, the settings: K2 .. K7 one each. Kept with the settings, in bytes no engine uses: favorites.factory[13]
  * 24..31 (VILLE's favorites are bits of bytes 0..1; Modular One shows none). [0] 'M' once written. */
@@ -144,6 +150,41 @@ static void m1_say(const char *s)
     m1.dirty = 1;
 }
 
+/* ARP: its choices (held, K2 .. K4), kept with the settings in favorites.factory[13][16..23] (bytes no engine uses;
+ * [0] 'P' once written). They stay when the sound changes */
+#define M1P (favorites.factory[13] + 16)
+enum { MP_MAGIC, MP_ATYPE, MP_ARATE, MP_AOCT, MP_BPM };
+enum { M1_B_ARP = 6, M1_B_CHORD = 9 };
+#define MP_NATYPE 13u
+static const uint8_t MP_ATYPE_V[MP_NATYPE] = {1, 2, 3, 7, 4, 5, 8, 9, 10, 11, 12, 13, 14};   /* params.c N_AMODE */
+static const char *const MP_ATYPE_N[MP_NATYPE] = {"MONTE", "DESCEND", "MONTE-DESC", "DESC-MONTE", "HASARD",
+                                                   "ORDRE JOUE", "MONTE +8", "CONVERGE", "DIVERGE", "PINKY",
+                                                   "POUCE", "PROMENADE", "ACCORDS"};
+#define MP_NRATE 7u
+static const uint8_t MP_RATE_V[MP_NRATE] = {6, 0, 1, 4, 2, 5, 3};                              /* N_DIV, slow first */
+static const char *const MP_RATE_N[MP_NRATE] = {"1/2", "1/4", "1/8", "1/8 T", "1/16", "1/16 T", "1/32"};
+
+static void mp_boot(void)
+{
+    if (M1P[MP_MAGIC] != 'P' || M1P[MP_ATYPE] >= MP_NATYPE || M1P[MP_ARATE] >= MP_NRATE || M1P[MP_BPM] > 200u) {
+        M1P[MP_ATYPE] = 0;                                                   /* up */
+        M1P[MP_ARATE] = 4;                                                   /* 1/16 */
+        M1P[MP_AOCT] = 0;                                                    /* one octave */
+        M1P[MP_BPM] = 120 - 40;
+    }
+    song.g[G_CLOCK] = 0;                                                     /* (a DAW's clock: seq.c follows it) */
+    song.g[G_BPM] = (int16_t)(40 + M1P[MP_BPM]);
+}
+/* the choices onto the sound (arp: on); no chord keys, no scale */
+static void mp_apply(track_t *t, uint32_t arp)
+{
+    t->p[P_AMODE] = (int16_t)(arp ? MP_ATYPE_V[M1P[MP_ATYPE]] : 0);
+    t->p[P_ARATE] = (int16_t)MP_RATE_V[M1P[MP_ARATE]];
+    t->p[P_AOCT] = 1;
+    t->p[P_CHRD] = CH_OFF;
+    t->p[P_QUANT] = QN_OFF;
+}
+
 /* the waves the sound has (MODULAR TAPE FM: both; JUNO: WAVE 1, the saw / pulse mix); 0 none */
 static uint32_t m1_waves(void)
 {
@@ -182,7 +223,11 @@ static void m1_sound(uint32_t pad)
     fm1_irq_off();
     t->eng_req = ENGI_VILLE;
     fm1_irq_on();
-    apply_preset_to(t, M1_PAD_SOUND[m1.pad]);
+    {
+        uint32_t arp = t->p[P_AMODE] != 0;
+        apply_preset_to(t, M1_PAD_SOUND[m1.pad]);
+        mp_apply(t, arp);                                                    /* the ARP stays as it is */
+    }
     t->p[P_REV] = 0;                                                         /* no reverb (the city's echo only) */
     t->p[P_LWAVE] = 0;                                                       /* the mod wheel's LFO: a sine */
     m1_faders_apply(1);                                                      /* the faders stay what they say */
@@ -213,15 +258,69 @@ static void m1_init(void)
     song.g[G_DMIX] = 100;
     smk_pad_free = 1;                                                        /* pads are ours: not notes */
     g1_boot();
+    mp_boot();
     m1_sound(0);
+}
+
+/* what the screen says for the ARP */
+static void mp_show(const char *lab, const char *val)
+{
+    m1.hlab = lab;
+    str_cpy(m1.hval, val, sizeof m1.hval);
+    m1_touch(M1T_HOLD, 0, 0);
+}
+static void mp_tempo(char *b)
+{
+    if (song.g[G_CLOCK]) {
+        str_cpy(b, "DAW", 4);
+        return;
+    }
+    fmt_int(b, song.g[G_BPM]);
+    str_cpy(b + str_len(b), " BPM", 5);
+}
+/* ARP held, knob K2 + k turned s */
+static void mp_turn(uint32_t k, int32_t s)
+{
+    track_t *t = M1T;
+    int32_t d = s > 0 ? 1 : -1;
+    uint32_t arp = t->p[P_AMODE] != 0;
+    char b[16];
+    m1.hold_used = 1;
+    switch (k) {
+    case 0: M1P[MP_ATYPE] = (uint8_t)clamp(M1P[MP_ATYPE] + d, 0, MP_NATYPE - 1); arp = 1; break;
+    case 1: M1P[MP_ARATE] = (uint8_t)clamp(M1P[MP_ARATE] + d, 0, MP_NRATE - 1); break;
+    case 2:
+        if (song.g[G_CLOCK])
+            break;                                                           /* (the DAW's tempo) */
+        M1P[MP_BPM] = (uint8_t)clamp(M1P[MP_BPM] + (s > 1 || s < -1 ? d * 5 : d), 0, 200);
+        song.g[G_BPM] = (int16_t)(40 + M1P[MP_BPM]);
+        break;
+    default: return;
+    }
+    mp_apply(t, arp);
+    M1P[MP_MAGIC] = 'P';
+    settings_save();                                                         /* (queued: settings_poll writes it) */
+    if (k == 0) {
+        mp_show("ARP", MP_ATYPE_N[M1P[MP_ATYPE]]);
+    } else if (k == 1) {
+        mp_show("VITESSE", MP_RATE_N[M1P[MP_ARATE]]);
+    } else {
+        mp_tempo(b);
+        mp_show("TEMPO", b);
+    }
 }
 
 static void m1_btn(uint32_t id, int down)
 {
     track_t *t = M1T;
     if (!down) {
-        if (id == 7u)
-            perf_press(PF_R16, 0);
+        if (id == m1.hold) {                                                 /* ARP let go */
+            if (!m1.hold_used) {                                             /* a tap: on / off */
+                mp_apply(M1T, !M1T->p[P_AMODE]);
+                mp_show("ARP", M1T->p[P_AMODE] ? MP_ATYPE_N[M1P[MP_ATYPE]] : "OFF");
+            }
+            m1.hold = 0xFF;
+        }
         return;
     }
     switch (id) {
@@ -241,23 +340,13 @@ static void m1_btn(uint32_t id, int down)
         song.octave = (int8_t)clamp(song.octave + (id == FM1_BTN_OCT_UP ? 1 : -1), -3, 3);
         m1_touch(M1T_BTN, id, song.octave);
         break;
-    case 6:                                                                  /* ARP */
-        t->p[P_AMODE] = (int16_t)(t->p[P_AMODE] ? 0 : 1);
-        m1_touch(M1T_BTN, id, t->p[P_AMODE]);
+    case M1_B_ARP:                                                           /* (on / off when let go) */
+        m1.hold = (uint8_t)id;
+        m1.hold_used = 0;
         break;
-    case 7:                                                                  /* NOTE REPEAT: while held */
-        perf_press(PF_R16, 1);
-        m1_touch(M1T_BTN, id, 1);
-        break;
-    case 8:                                                                  /* SCALE: snap to the scale */
-        t->p[P_QUANT] = (int16_t)(t->p[P_QUANT] ? QN_OFF : QN_SNAP);
-        if (t->p[P_QUANT] && !t->p[P_SCALE])
-            t->p[P_SCALE] = 2;                                               /* (minor, the film music default) */
-        m1_touch(M1T_BTN, id, t->p[P_QUANT]);
-        break;
-    case 9:                                                                  /* CHORD: a triad of the scale */
-        t->p[P_CHRD] = (int16_t)(t->p[P_CHRD] ? CH_OFF : CH_DIA3);
-        m1_touch(M1T_BTN, id, t->p[P_CHRD]);
+    case M1_B_CHORD:                                                         /* the A 440 */
+        m1_la ^= 1u;
+        mp_show("LA 440", m1_la ? "ON" : "OFF");
         break;
     case 10:                                                                 /* GLOBE: the settings */
         m1.globe ^= 1u;
@@ -269,29 +358,6 @@ static void m1_btn(uint32_t id, int down)
         m1.vintage ^= 1u;
         m1_vintage = m1.vintage;
         m1_touch(M1T_BTN, id, m1.vintage);
-        break;
-    case M1_B_PLAY:                                                          /* the tape: play / stop */
-        if (!pl_count && !demo_on) {
-            m1_say("CARNET VIDE");
-            break;
-        }
-        demo_req = demo_on ? 2u : 1u;
-        m1_touch(M1T_TAPE, id, 0);
-        break;
-    case M1_B_REC:                                                           /* (held: m1_tape_held) */
-        m1.rec_ms = fm1_ms;
-        m1.rec_done = 0;
-        break;
-    case M1_B_LEFT: case M1_B_RIGHT:
-        if (!pl_count)
-            break;
-        if (demo_on) {
-            demo_req = id == M1_B_RIGHT ? 3u : 5u;                            /* next / previous */
-        } else {
-            pl_start = (uint8_t)((pl_start + (id == M1_B_RIGHT ? 1u : pl_count - 1u)) % pl_count);
-            pl_cursor = pl_start;
-        }
-        m1_touch(M1T_TAPE, id, 0);
         break;
     default:
         break;
@@ -317,7 +383,9 @@ static void m1_input(void)
             m1_sound((uint32_t)e >> 8);
     for (k = 0; k < M1_NK; k++) {                                            /* K2 .. K8 */
         int32_t s = fm1_enc_take(k + 1u);
-        if (s && m1.globe) {                                                 /* GLOBE: K2 .. K7 the settings */
+        if (s && m1.hold != 0xFF && !m1.globe) {                            /* ARP held: choose */
+            mp_turn(k, s);
+        } else if (s && m1.globe) {                                                 /* GLOBE: K2 .. K7 the settings */
             m1.active_ms = fm1_ms;
             if (k < G1_N)
                 g1_turn(k, s);
@@ -336,26 +404,6 @@ static void m1_input(void)
             m1_btn(k, 1);
         if ((released >> k) & 1u)
             m1_btn(k, 0);
-    }
-    {   /* the tape's held gestures */
-        uint32_t b = fm1_in.buttons;
-        if ((b >> M1_B_REC) & 1u) {
-            if (!m1.rec_done && fm1_ms - m1.rec_ms >= 600u) {               /* REC held: keep the last phrase */
-                m1.rec_done = 1;
-                m1_keep_req = 1;
-                m1_say("ON GARDE...");
-            }
-        }
-        if (((b >> M1_B_LEFT) & 1u) && ((b >> M1_B_RIGHT) & 1u) && pl_count && !demo_on) {
-            if (!m1.del_ms)
-                m1.del_ms = fm1_ms ? fm1_ms : 1u, m1.del_done = 0;
-            if (!m1.del_done && fm1_ms - m1.del_ms >= 1500u) {              /* < and > held: erase the sketch shown */
-                m1.del_done = 1;
-                m1_del_req = (uint8_t)(pl_start % pl_count + 1u);
-            }
-        } else {
-            m1.del_ms = 0;
-        }
     }
     if (fm1_in.frames > 200u)
         m1_faders_apply(m1.fader[0] == 0xFF);
@@ -376,23 +424,22 @@ static void m1_leds(void)
 {
     uint32_t p, w = m1_waves();
     track_t *t = M1T;
-    static const uint8_t LIT[4] = {20, 45, 75, 100}, DIM[4] = {4, 7, 11, 15};   /* GLOBE LUMIERE PADS, % */
+    static const uint8_t LIT[4] = {35, 60, 85, 100}, DIM[4] = {2, 4, 6, 9};   /* GLOBE LUMIERE PADS, % */
     uint32_t b = M1G[M1G_PADS] % 4u;
-    for (p = 0; p < 16u; p++) {
-        const uint8_t *c = M1_PAD_RGB[p];
+    for (p = 0; p < 16u; p++) {                                              /* warm white; the sound's pad bright */
         uint32_t pc = p == m1.pad ? LIT[b] : DIM[b];
-        padled_set(p, (uint8_t)(c[0] * pc / 100u), (uint8_t)(c[1] * pc / 100u), (uint8_t)(c[2] * pc / 100u));
+        padled_set(p, (uint8_t)(255u * pc / 100u), (uint8_t)(150u * pc / 100u), (uint8_t)(62u * pc / 100u));
     }
     fm1_led_key(SMK_BTN_KNOB_BANK, (w & 1u) != 0);
     fm1_led_key(SMK_BTN_FADER_BANK, (w & 2u) != 0);
     fm1_led_key(FM1_BTN_OCT_DOWN, song.octave < 0);
     fm1_led_key(FM1_BTN_OCT_UP, song.octave > 0);
     fm1_led_key(6, t->p[P_AMODE] != 0);
-    fm1_led_key(7, (fm1_in.buttons >> 7) & 1u);
-    fm1_led_key(8, t->p[P_QUANT] != 0);
-    fm1_led_key(9, t->p[P_CHRD] != 0);
+    fm1_led_key(7, 0);
+    fm1_led_key(8, 0);
+    fm1_led_key(9, m1_la);
     fm1_led_key(10, m1.globe);
     fm1_led_key(14, m1.vintage);
-    fm1_led_key(M1_B_PLAY, demo_on);
-    fm1_led_key(M1_B_REC, ((fm1_in.buttons >> M1_B_REC) & 1u) || fm1_ms - m1.msg_ms < 400u);
+    fm1_led_key(M1_B_PLAY, 0);
+    fm1_led_key(M1_B_REC, 0);
 }

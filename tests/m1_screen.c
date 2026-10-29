@@ -215,28 +215,31 @@ int main(int argc, char **argv)
     for (k = 0; k < 30u; k++) { fm1_in.fader[0] = (uint8_t)(k * 127 / 29); fm1_in.fader[1] = (uint8_t)(110 - k * 110 / 29); run(60); }
     run(2000);                                                              /* the day: he wakes */
     if (cat.clip == CAT_SLEEP || cat.clip == CAT_ENDORT) { printf("m1_screen: FAIL still asleep in the day\n"); fails++; }
-    /* the tape: a phrase, 4 s of silence, REC held: a sketch; PLAY plays it, the cat listens; < and > erase it */
+    /* ARP: a tap on / off; held, K2 its mode, K3 its speed, K4 the tempo (the press itself turns nothing); the arp
+     * stays when the sound changes. CHORD: the A 440 on / off. REC: nothing (no tape) */
     {
-        static const uint8_t PH[6] = {0, 4, 7, 12, 7, 4};
-        uint32_t j;
-        run(4500);
-        for (j = 0; j < 6u; j++) {
-            input_on(M1T, 60u + PH[j], 90);
-            run(250);
-            input_off(M1T, 60u + PH[j]);
-            run(50);
+        uint32_t bpm = (uint32_t)song.g[G_BPM];
+        host_btn = 1u << 6; host_pressed = host_btn; run(200); host_released = host_btn; host_btn = 0; run(300);
+        if (M1T->p[P_AMODE] != 1) { printf("m1_screen: FAIL ARP tap: mode %d\n", M1T->p[P_AMODE]); fails++; }
+        host_btn = 1u << 6; host_pressed = host_btn; run(200);
+        host_enc[1] = 1; run(300); host_enc[1] = 1; run(300);               /* MONTE -> DESCEND -> MONTE-DESC */
+        host_enc[2] = -1; run(300);                                          /* 1/16 -> 1/8 T */
+        host_enc[3] = 1; run(300);                                           /* tempo + 1 */
+        host_released = host_btn; host_btn = 0; run(300);
+        if (M1T->p[P_AMODE] != 3 || M1T->p[P_ARATE] != 4 || (uint32_t)song.g[G_BPM] != bpm + 1u) {
+            printf("m1_screen: FAIL ARP held: mode %d rate %d bpm %d\n", M1T->p[P_AMODE], M1T->p[P_ARATE], song.g[G_BPM]); fails++;
         }
-        run(4500);
-        host_btn = 1u << M1_B_REC; host_pressed = host_btn; run(900); host_released = host_btn; host_btn = 0; run(1500);
-        if (pl_count != 1u || pl_item[0].n != 6u) { printf("m1_screen: FAIL REC held kept %u sketches (%u notes)\n", pl_count, pl_count ? pl_item[0].n : 0); fails++; }
-        host_pressed = 1u << M1_B_PLAY; run(600);
-        if (!demo_on || cat.clip != CAT_PLAY) { printf("m1_screen: FAIL PLAY: playing %u, cat clip %u\n", demo_on, cat.clip); fails++; }
-        run(2500);
-        host_pressed = 1u << M1_B_PLAY; run(600);
-        if (demo_on) { printf("m1_screen: FAIL PLAY again did not stop\n"); fails++; }
-        run(1500);
-        host_btn = 1u << M1_B_LEFT | 1u << M1_B_RIGHT; run(1800); host_btn = 0; run(1500);
-        if (pl_count) { printf("m1_screen: FAIL < > held did not erase the sketch\n"); fails++; }
+        host_pad = 9; run(500);                                              /* BRASS: the arp stays */
+        if (M1T->p[P_AMODE] != 3 || M1T->p[P_CHRD] || M1T->p[P_QUANT]) { printf("m1_screen: FAIL ARP lost with the sound\n"); fails++; }
+        host_pressed = 1u << 6; run(200); host_released = 1u << 6; run(300);
+        if (M1T->p[P_AMODE]) { printf("m1_screen: FAIL ARP tap off\n"); fails++; }
+        host_pressed = 1u << 9; run(300);
+        if (!m1_la) { printf("m1_screen: FAIL CHORD: no A 440\n"); fails++; }
+        host_pressed = 1u << 9; run(300);
+        if (m1_la) { printf("m1_screen: FAIL CHORD again: the A 440 still on\n"); fails++; }
+        host_btn = 1u << M1_B_REC; host_pressed = host_btn; run(900); host_released = host_btn; host_btn = 0; run(300);
+        if (pl_count) { printf("m1_screen: FAIL REC kept a sketch\n"); fails++; }
+        host_pad = 0; run(2600);
     }
     /* GLOBE: K2 .. K7, one setting each, saved; the cat back after */
     cut = M1T->p[P_E3];
