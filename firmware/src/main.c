@@ -139,25 +139,6 @@ static void smk_wheels(void)
     if (m > mhi)
         mhi = m;
     d = p - pc;
-#if MODULAR_ONE
-    {   /* the wheel let go: its spring brings it back towards the centre, but on the Elite not within DEAD of the
-         * first reading (it stayed almost a semitone sharp). It came back towards the centre and has rested there
-         * 0.25 s, less than half its travel away: that is the centre now. (A bend held away from the centre is never
-         * taken for it: the last move went outwards.) */
-        static int32_t still_p, still_t, inward;
-        int32_t span = phi - plo, dp = p - still_p;
-        if (dp > 3 || dp < -3) {
-            int32_t a0 = still_p - pc, a1 = p - pc;
-            inward = (a1 < 0 ? -a1 : a1) < (a0 < 0 ? -a0 : a0);
-            still_p = p;
-            still_t = (int32_t)fm1_ms;
-        } else if (inward && (int32_t)fm1_ms - still_t > 250 && d * 4 < span && -d * 4 < span) {
-            pc = p;
-            d = 0;
-            inward = 0;
-        }
-    }
-#endif
     if (d > -DEAD && d < DEAD) {
         b = 0;
         if (++rest > 200) {                        /* resting: the centre follows a slow drift */
@@ -166,11 +147,15 @@ static void smk_wheels(void)
         }
     } else {
         rest = 0;
-        b = d > 0 ? (d - DEAD) * 8191 / (phi - pc - DEAD > 1 ? phi - pc - DEAD : 1)
-                  : (d + DEAD) * 8192 / (pc - plo - DEAD > 1 ? pc - plo - DEAD : 1);
+        b = d > 0 ? (d - DEAD) * 8191 / (phi - pc - BAND > 1 ? phi - pc - BAND : 1)
+                  : (d + DEAD) * 8192 / (pc - plo - BAND > 1 ? pc - plo - BAND : 1);   /* (full at the travel's end) */
         b = clamp(b, -8192, 8191);
     }
     mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
+#if MODULAR_ONE
+    b = 0;                                         /* Modular One: the pitch wheel is off (the Elite's does not come back
+                                                    * to its centre: the pitch stayed up to a semitone off) */
+#endif
     smk_bend14 = (int16_t)b;
     smk_modw = (uint8_t)clamp(mw, 0, 127);
 #if MODULAR_ONE

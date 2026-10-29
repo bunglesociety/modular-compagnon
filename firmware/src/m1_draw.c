@@ -540,7 +540,7 @@ static void m1_globe_draw(int all)
         if (all || sig != last) {
             char t[32], *q = t;
             last = sig;
-            str_cpy(q, "MOLETTE ", 9); q += 8;
+            str_cpy(q, "PW ", 4); q += 3;
             fmt_int(q, raw); q += str_len(q); *q++ = '/';
             fmt_int(q, c); q += str_len(q); str_cpy(q, "  BEND ", 8); q += 7;
             fmt_int(q, b * 200 / 8191);
