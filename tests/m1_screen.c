@@ -53,6 +53,7 @@ static void padled_set(uint32_t p, uint8_t r, uint8_t g, uint8_t b) { (void)p; (
 static void fm1_led_key(uint32_t k, int on) { (void)k; (void)on; }
 static void apply_preset_to(track_t *t, uint32_t pi) { host_preset(t, ENGI_VILLE, pi); }
 static volatile uint8_t smk_modw;
+static volatile int16_t smk_bend14;
 static void fm1_irq_off(void) {}
 static void fm1_irq_on(void) {}
 static volatile uint8_t smk_vel_curve;

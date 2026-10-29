@@ -293,6 +293,20 @@ static void fm1_input_init(void)
 
 /* ------------------------------------------------------------------ frame --- */
 FM1_INLINE uint32_t smk__closed(uint32_t code) { return (fm1_in.raw[code >> 4] >> (code & 15u)) & 1u; }
+/* The matrix has no diodes: a contact (row R, column C) reads closed, though open, when three closed ones make a
+ * rectangle with it: (R, C'), (R2, C') and (R2, C). A held chord (rows 0..4) plus a closed encoder contact (row 7,
+ * most of them rest closed) is such a rectangle: on the Elite, chords pressed SCALE / CHORD / OCTAVE and turned the
+ * knobs by themselves. 1 = this contact may be such a ghost (ghosts only ever add closures). */
+static uint32_t smk__keycol(uint32_t code)
+{
+    uint32_t c = code >> 4, r = code & 15u, k, rc = fm1_in.raw[c] & ~(1u << r);
+    if (!rc)
+        return 0;
+    for (k = 0; k < sizeof fm1_in.raw / sizeof fm1_in.raw[0]; k++)
+        if (k != c && ((fm1_in.raw[k] >> r) & 1u) && (fm1_in.raw[k] & rc))
+            return 1;
+    return 0;
+}
 
 static void smk__extq(uint32_t k, uint32_t vel)
 {
@@ -376,6 +390,10 @@ static void smk__buttons(void)
     uint32_t i;
     for (i = 0; i < FM1_NBTN; i++) {
         uint32_t closed = smk__closed(SMK_BTNC[i]), bit = 1u << i, on = (fm1_in.buttons & bit) != 0u;
+        if (closed && !on && smk__keycol(SMK_BTNC[i])) {   /* (a press under a held key may be a ghost: not taken) */
+            fm1_in.cnt[i] = 0;
+            continue;
+        }
         volatile uint8_t *c = &fm1_in.cnt[i];
         if (closed == on) {
             *c = 0;
@@ -399,15 +417,15 @@ static void smk__buttons(void)
  * ones cannot add up over minutes into a step. */
 static void smk__encoders(void)
 {
-    uint32_t e, ghost = fm1_in.key_quiet < 3u;
+    uint32_t e, ghost = fm1_in.key_quiet < 3u;   /* (a key contact just moved) */
     if (fm1_in.key_quiet < 255u)
         fm1_in.key_quiet++;
     for (e = 0; e < FM1_NENC; e++) {
         uint32_t cur = smk__closed(SMK_ENCC[e][0]) | smk__closed(SMK_ENCC[e][1]) << 1, h;
         if (fm1_in.enc_idle[e] < 255u && ++fm1_in.enc_idle[e] == 64u)
             fm1_in.enc_cnt[e] = 0;
-        if (ghost && fm1_in.enc_last[e] != 0xFF)
-            continue;
+        if ((ghost || smk__keycol(SMK_ENCC[e][0]) || smk__keycol(SMK_ENCC[e][1])) && fm1_in.enc_last[e] != 0xFF)
+            continue;                               /* (a key held in its columns: its contacts may be ghosts) */
         if (fm1_in.enc_last[e] == 0xFF) {           /* first frame */
             fm1_in.enc_last[e] = (uint8_t)cur;
             fm1_in.enc_hist[e] = (uint8_t)(cur * 0x15u);

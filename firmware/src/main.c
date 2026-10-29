@@ -173,6 +173,10 @@ static void smk_wheels(void)
     mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
     smk_bend14 = (int16_t)b;
     smk_modw = (uint8_t)clamp(mw, 0, 127);
+#if MODULAR_ONE
+    m1_pw_raw = (int16_t)p;                        /* (shown by GLOBE: the wheel as read, its centre) */
+    m1_pw_centre = (int16_t)pc;
+#endif
 }
 #endif
 

@@ -30,7 +30,8 @@ static const uint8_t M1_K_PARAM[M1_NK] = {P_E3, P_E4, P_ATK, P_DEC, P_SUS, P_REL
 static const char *const M1_K_NAME[M1_NK] = {"CUTOFF", "RESO", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DETUNE"};
 
 /* what the screen shows: the last control touched (m1_draw.c) */
-enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL, M1T_TAPE };
+enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL, M1T_TAPE, M1T_PITCH };
+static volatile int16_t m1_pw_raw, m1_pw_centre;   /* the pitch wheel as read, its centre (main.c smk_wheels) */
 enum { M1_B_LEFT = 2, M1_B_RIGHT = 3, M1_B_PLAY = 16, M1_B_REC = 17 };
 static struct {
     uint8_t pad;             /* the sound's pad (hardware number) */
@@ -360,6 +361,14 @@ static void m1_input(void)
     if (fm1_in.frames > 200u)
         m1_faders_apply(m1.fader[0] == 0xFF);
     m1_modwheel();
+    {   /* the pitch wheel: shown while it bends (cents, the bend range of 2 semitones) */
+        static int16_t last;
+        int32_t b = smk_bend14;
+        if (b != last) {
+            last = (int16_t)b;
+            m1_touch(M1T_PITCH, 0, b * 200 / 8191);
+        }
+    }
     {   /* the cat listens: the last key */
         uint32_t n = fm1_input_note_edges();
         if (n) {
