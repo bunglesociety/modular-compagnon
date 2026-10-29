@@ -235,7 +235,62 @@ static const uint8_t DIV_DOT[3] = {2, 3, 1};           /* 3 quarters >> this */
 #if MODULAR_ONE
 static volatile uint32_t m1_dly_target;   /* Modular One: the echo TIME fader, samples (0 = the tempo divisions) */
 static uint32_t m1_dly_cur = 11000u;
-static volatile uint8_t m1_vintage;       /* Modular One: FX, the vintage (m1_vintage_block) */
+static volatile uint8_t m1_vintage;       /* Modular One: FX, the vintage (m1_vint) */
+
+/* FX, the vintage: an old tape machine, worn but not broken. On the mix, before the master (dc_block takes the
+ * offset of the even harmonics):
+ *   wow 0.55 Hz (+-0.1 %) and flutter 6.3 Hz (+-0.02 %): a 64-sample line read at a moving point (linear)
+ *   warmth   a gentle third (-1.5 dB at full scale) and a little second, as a tape's
+ *   the top  two one-poles, ~7.5 kHz and ~11 kHz: the air goes, the words stay
+ * On / off fades over ~46 ms (the line keeps running, so the tape is up to speed when it comes in). */
+#define M1V_LEN 64u
+static int32_t m1v_buf[2][M1V_LEN], m1v_lp[2][2];
+static uint32_t m1v_w, m1v_wow, m1v_flt, m1v_mix;          /* m1v_mix 0 .. 2048 */
+static inline int32_t m1v_warm(int32_t x)
+{
+    int32_t x2, x3;
+    x = x > 46000 ? 46000 : x < -46000 ? -46000 : x;
+    x2 = (x * x) >> 15;                                    /* <= 64577 */
+    x3 = ((x2 >> 1) * x) >> 14;                            /* x^3 / 32768^2 */
+    return x - x3 / 6 + (x2 >> 6);
+}
+static inline void m1_vint(int32_t *l, int32_t *r)
+{
+    int32_t in[2] = {*l, *r}, k;
+    uint32_t pos, i, f;
+    if (m1_vintage ? m1v_mix < 2048u : m1v_mix > 0u)
+        m1v_mix += m1_vintage ? 1u : (uint32_t)-1;
+    m1v_wow += 53500u;                                       /* 0.55 Hz: 2^32 x 0.55 / 44100 */
+    m1v_flt += 613500u;                                      /* 6.3 Hz */
+    if (!m1v_mix) {
+        m1v_buf[0][m1v_w] = in[0];
+        m1v_buf[1][m1v_w] = in[1];
+        m1v_w = (m1v_w + 1u) & (M1V_LEN - 1u);
+        return;
+    }
+    /* the read point, 24 samples back +- 12 (wow) +- 0.4 (flutter), Q8 */
+    pos = (uint32_t)(24 * 256 + ((sine_i(m1v_wow) * 12) >> 7) + (sine_i(m1v_flt) >> 7) / 3);
+    for (k = 0; k < 2; k++) {
+        int32_t a, b, y;
+        m1v_buf[k][m1v_w] = in[k];
+        i = (m1v_w - (pos >> 8)) & (M1V_LEN - 1u);
+        f = pos & 255u;
+        a = m1v_buf[k][i];
+        b = m1v_buf[k][(i - 1u) & (M1V_LEN - 1u)];
+        y = a + (((b - a) >> 4) * (int32_t)f >> 4);
+        y = m1v_warm(y);
+        m1v_lp[k][0] += ((y - m1v_lp[k][0]) * 21) >> 5;       /* ~7.5 kHz */
+        m1v_lp[k][1] += ((m1v_lp[k][0] - m1v_lp[k][1]) * 26) >> 5;   /* ~11 kHz */
+        y = m1v_lp[k][1];
+        in[k] += (((y - in[k]) >> 3) * (int32_t)m1v_mix) >> 8;
+    }
+    m1v_w = (m1v_w + 1u) & (M1V_LEN - 1u);
+    *l = in[0];
+    *r = in[1];
+}
+#define M1_VINT(l, r) m1_vint(l, r)
+#else
+#define M1_VINT(l, r) ((void)0)
 #endif
 static uint32_t delay_samples(void)
 {
@@ -978,6 +1033,7 @@ static __attribute__((noinline)) void perf_master(int32_t *out, uint32_t n)
     perf_block(mix_l, mix_r, n);
     for (i = 0; i < n; i++) {
         int32_t l = mix_l[i], r = mix_r[i];
+        M1_VINT(&l, &r);
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
@@ -1089,6 +1145,7 @@ static void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++) {
         int32_t l = (((mix_l[i] + wet[i]) >> 2) * mg) >> 10;
         int32_t r = (((mix_r[i] + wet[i]) >> 2) * mg) >> 10;
+        M1_VINT(&l, &r);
         master_out(&l, &r);
         out[2u * i] = l;
         out[2u * i + 1u] = r;
