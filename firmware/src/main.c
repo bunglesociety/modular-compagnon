@@ -147,8 +147,8 @@ static void smk_wheels(void)
         }
     } else {
         rest = 0;
-        b = d > 0 ? (d - DEAD) * 8191 / (phi - pc - BAND > 1 ? phi - pc - BAND : 1)
-                  : (d + DEAD) * 8192 / (pc - plo - BAND > 1 ? pc - plo - BAND : 1);   /* (full at the travel's end) */
+        b = d > 0 ? (d - DEAD) * 8191 / (phi - pc - DEAD > 1 ? phi - pc - DEAD : 1)
+                  : (d + DEAD) * 8192 / (pc - plo - DEAD > 1 ? pc - plo - DEAD : 1);   /* (full at the travel's end) */
         b = clamp(b, -8192, 8191);
     }
     mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
