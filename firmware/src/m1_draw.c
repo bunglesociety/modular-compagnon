@@ -140,13 +140,12 @@ static struct {
     uint8_t show;
 } cap;
 
-/* the opening (5 s, a note or a touch skips it): BUNGLE SOCIETY comes down from the top, as on the FM-1's Modular
- * One, MODULAR COMPAGNON under it; the cat asleep on the grass below, his zzz; then he wakes up */
-#define SPL_MS 5000u
-#define SPL_STOP 1700
-#define SPL_Y 34
-#define SPL_SUB_Y 58
-static struct { uint8_t on, sub, started; uint32_t t0; int16_t y; } spl = {1, 0, 0, 0, -20};
+/* the opening (8 s, a note or a touch skips it): BUNGLE SOCIETY comes down from the top to the middle, as on the
+ * FM-1's Modular One; the cat asleep on the grass below, his zzz; then he wakes up */
+#define SPL_MS 8000u
+#define SPL_STOP 1700                            /* (the descent; then it stays 6.3 s in the middle) */
+#define SPL_Y 104                                /* (just clear of his zzz) */
+static struct { uint8_t on, started; uint32_t t0; int16_t y; } spl = {1, 0, 0, -20};
 static int32_t spl_y(int32_t t) { return t >= SPL_STOP ? SPL_Y : -14 + (SPL_Y + 14) * t / SPL_STOP; }
 
 static uint32_t m1_hash(uint32_t h, const char *t)
@@ -351,8 +350,6 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
             int32_t oy = -(int32_t)sy0;
             uint32_t bh = nr * 3u;
             pf_draw(cv_px, 240u, bh, 120 - pf_width("BUNGLE SOCIETY") / 2, spl.y + oy, "BUNGLE SOCIETY", ink);
-            if (spl.sub)
-                pf_draw(cv_px, 240u, bh, 120 - pf_width("MODULAR COMPAGNON") / 2, SPL_SUB_Y + oy, "MODULAR COMPAGNON", acc);
         } else if (gy0 < CAP_GY) {                                           /* the words, at the top */
             int32_t oy = -(int32_t)sy0;
             uint32_t bh = nr * 3u;
@@ -681,10 +678,6 @@ static void m1_draw(void)
                     hi = hi < 0 ? 0 : hi / 3 + 1;
                     if (hi > lo)
                         scene_rows((uint32_t)lo, (uint32_t)(hi > (int32_t)ROOM_G ? ROOM_G : hi));
-                }
-                if (t >= 2300 && !spl.sub) {
-                    spl.sub = 1;
-                    scene_rows(SPL_SUB_Y / 3u, SPL_SUB_Y / 3u + 5u);
                 }
             }
             if (wake == 2)
