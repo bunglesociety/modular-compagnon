@@ -1,24 +1,27 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Alexis Arakis (Bungle Society) */
 /* Modular One on the SMK-37: the screen. A little black cat lives in it.
- *   the room     240 x 240: an 80 x 80 grid of 3 x 3 px cells. An old paper wall (a grain in it, the corners a little
- *                darker), a skirting board, a wooden floor. Fader 1 brings the night (stars come out), fader 2 the
- *                snow (the FM winter).
- *   the cat      clips of frames (cat_sprites.h, tools/gen_cat.py, his 80 x 68 cells): he sits and breathes, listens
+ *   the room     240 x 240: an 80 x 80 grid of 3 x 3 px cells. Old paper (a grain in it, the corners a little darker);
+ *                the bottom of the screen is his floor, a round woven rug in the middle of it. Fader 1 brings the
+ *                night (stars come out), fader 2 the snow (the FM winter).
+ *   the cat      clips of frames (cat_sprites.h, tools/gen_cat.py, 80 x 80 cells, his feet on the bottom row): he
+ *                sits and breathes, listens
  *                when you play (eyes ^^, notes), looks at a control you touch, and when you leave him alone he lives
  *                his life (griffes on the edge of the screen, toilette, roulade, la folie, chasse, mlem, ...). At night
  *                he falls asleep; playing wakes him.
- *   the words    on the floor, in the pixel letters of Modular One (Silkscreen at 2x, m1_pixfont.h): the sound, or
+ *   the words    at the top, in the pixel letters of Modular One (Silkscreen at 2x, m1_pixfont.h): the sound, or
  *                the control touched with its value and a bar of blocks.
- * Only what changed goes to the LCD: the rows the cat moved in, the floor's words when they change; the whole room
+ * Only what changed goes to the LCD: the rows the cat moved in, the words when they change; the whole room
  * when the light changes or while snow falls. GLOBE (the settings) is a page of its own, in the same letters. */
 #include "cat_sprites.h"
 #include "m1_pixfont.h"
 
 #define M1_RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 #define ROOM_G 80u                               /* the room's rows (the cat's: CAT_SCENE) */
-#define WALL_ROWS 56u                            /* the wall above, the skirting board, the floor below */
-#define CAP_GY 68u                               /* the floor's words: grid rows 68 .. 79 (screen 204 .. 239) */
+#define CAP_GY 13u                               /* the words: grid rows 0 .. 12 (screen 0 .. 38) */
+#define RUG_X 40                                 /* the rug: an oval centred on the bottom row, 60 x 13 cells */
+#define RUG_RX 30
+#define RUG_RY2 42                               /* (6.5 rows, squared) */
 
 static uint8_t cat_buf[CAT_G * CAT_SCENE] __attribute__((section(".pool")));
 static struct {
@@ -201,14 +204,14 @@ static const uint8_t STARS[18][2] = {
     {5, 6}, {14, 15}, {22, 4}, {31, 10}, {44, 3}, {52, 12}, {60, 5}, {70, 9}, {76, 20}, {9, 28},
     {66, 30}, {38, 22}, {3, 44}, {74, 40}, {27, 34}, {57, 24}, {48, 40}, {18, 46},
 };
-enum { RC_WALL, RC_GRAIN, RC_BOARD, RC_FLOOR, RC_PLANK, RC_SHADOW, RC_N };
+enum { RC_WALL, RC_GRAIN, RC_RIM, RC_BAND, RC_WEFT1, RC_WEFT2, RC_N };   /* the paper; the rug: rim, band, weave */
 /* day, snow (the day whitened a little, still warm), night */
-static const uint8_t ROOM_DAY[RC_N][3] = {{0xdc, 0xca, 0xa4}, {0xd2, 0xbe, 0x97}, {0xa0, 0x86, 0x60},
-                                          {0xc4, 0xab, 0x80}, {0xb5, 0x9b, 0x71}, {0xa8, 0x8f, 0x69}};
-static const uint8_t ROOM_SNOW[RC_N][3] = {{0xe3, 0xdc, 0xc9}, {0xd9, 0xd1, 0xbd}, {0xa7, 0x98, 0x80},
-                                           {0xd3, 0xc9, 0xb2}, {0xc6, 0xbb, 0xa3}, {0xb3, 0xa7, 0x90}};
-static const uint8_t ROOM_NIGHT[RC_N][3] = {{0x26, 0x22, 0x40}, {0x22, 0x1e, 0x3a}, {0x14, 0x12, 0x26},
-                                            {0x1e, 0x1b, 0x34}, {0x1a, 0x17, 0x2e}, {0x12, 0x10, 0x24}};
+static const uint8_t ROOM_DAY[RC_N][3] = {{0xdc, 0xca, 0xa4}, {0xd2, 0xbe, 0x97}, {0x9c, 0x5a, 0x3c},
+                                          {0xe2, 0xc6, 0x9a}, {0xc9, 0x8a, 0x52}, {0xb9, 0x7a, 0x47}};
+static const uint8_t ROOM_SNOW[RC_N][3] = {{0xe3, 0xdc, 0xc9}, {0xd9, 0xd1, 0xbd}, {0x9c, 0x5e, 0x44},
+                                           {0xe6, 0xd2, 0xb0}, {0xc9, 0x93, 0x63}, {0xba, 0x85, 0x58}};
+static const uint8_t ROOM_NIGHT[RC_N][3] = {{0x26, 0x22, 0x40}, {0x22, 0x1e, 0x3a}, {0x3a, 0x1e, 0x26},
+                                            {0x5a, 0x4c, 0x5c}, {0x4a, 0x30, 0x34}, {0x42, 0x2a, 0x30}};
 
 static uint16_t room_col(uint32_t k, int32_t w, int32_t n)
 {
@@ -226,7 +229,7 @@ static void room_ink(uint16_t *ink, uint16_t *acc, uint16_t *dim)
     uint16_t day = M1_RGB(0x4a, 0x38, 0x28), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
     *ink = n > 64 ? ngt : day;
     *acc = ux_mix(pad, *ink, n > 64 ? 25 : 45);
-    *dim = ux_mix(room_col(RC_FLOOR, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
+    *dim = ux_mix(room_col(RC_WALL, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
 }
 
 /* the paper's grain: a few cells a shade darker, always the same ones */
@@ -242,7 +245,7 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
 {
     static const uint8_t none[CAT_G];
     uint16_t pal[16], rc[RC_N][4], star = 0, flake, ink, acc, dim;
-    uint32_t i, j, sx0 = 0, sx1 = 0, nflakes = cat.winter > 16 ? (uint32_t)cat.winter / 4u : 0u;
+    uint32_t i, j, nflakes = cat.winter > 16 ? (uint32_t)cat.winter / 4u : 0u;
     int32_t n = cat.night < 0 ? 0 : cat.night, w = cat.winter < 0 ? 0 : cat.winter;
     for (i = 0; i < RC_N; i++) {                                             /* each colour, 4 steps darker to the edge */
         uint16_t c = room_col(i, w, n);
@@ -260,10 +263,6 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
         nflakes = 32u;
     for (i = 0; i < 16u; i++)
         pal[i] = swap16(CAT_PAL[i]);
-    if (cat.box[2] && cat.box[1] + cat.box[3] >= 58u) {                     /* his shadow, under him on the floor */
-        sx0 = cat.box[0] + 2u;
-        sx1 = cat.box[0] + cat.box[2] - 2u;
-    }
     while (gy0 < gy1) {
         uint32_t nr = gy1 - gy0, r, sy0 = gy0 * 3u;
         if (nr > 41u)
@@ -278,14 +277,13 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
                 uint16_t v;
                 e = e < ey ? e : ey;
                 lv = e < 1u ? 3u : e < 2u ? 2u : e < 4u ? 1u : 0u;           /* the corners and edges, a little darker */
-                if (gy < WALL_ROWS)
-                    kind = room_grain(gx, gy) ? RC_GRAIN : RC_WALL;
-                else if (gy == WALL_ROWS)
-                    kind = RC_BOARD;
-                else if ((gy == 62u || gy == 63u) && gx >= sx0 && gx < sx1)
-                    kind = RC_SHADOW;
-                else
-                    kind = (gy - WALL_ROWS) % 6u == 0u || ((gx + (gy - WALL_ROWS) / 6u * 29u) % 37u == 0u) ? RC_PLANK : RC_FLOOR;
+                kind = room_grain(gx, gy) ? RC_GRAIN : RC_WALL;
+                if (gy >= ROOM_G - 7u) {                                     /* the rug: rim, a light band, the weave */
+                    int32_t dx = (int32_t)gx - RUG_X, dy = (int32_t)gy - (int32_t)(ROOM_G - 1u);
+                    int32_t d = dx * dx * 1000 / (RUG_RX * RUG_RX) + dy * dy * 1000 / RUG_RY2;
+                    if (d <= 1000)
+                        kind = d > 800 ? RC_RIM : d > 700 ? RC_BAND : ((gx + gy) & 3u) < 2u ? RC_WEFT1 : RC_WEFT2;
+                }
                 v = rc[kind][lv];
                 if (c[gx])
                     v = pal[c[gx]];
@@ -298,28 +296,28 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
                 }
             for (k = 0; k < 240u; k++)
                 row[240u + k] = row[480u + k] = row[k];
-            if (star && gy < 50u)                                            /* a star: one pixel in the middle */
+            if (star && gy >= CAP_GY && gy < 50u)                            /* a star: one pixel in the middle */
                 for (k = 0; k < 18u; k++)
                     if (STARS[k][1] == gy && !c[STARS[k][0]])
                         row[240u + STARS[k][0] * 3u + 1u] = star;
         }
-        if (gy0 + nr > CAP_GY) {                                             /* the words on the floor */
+        if (gy0 < CAP_GY) {                                                  /* the words, at the top */
             int32_t oy = -(int32_t)sy0;
             uint32_t bh = nr * 3u;
             if (!cap.show) {
                 if (cap.head[0]) {
-                    pf_draw(cv_px, 240u, bh, 10, 215 + oy, cap.head, ink);
-                    pf_draw(cv_px, 240u, bh, 230 - pf_width(cap.snd), 215 + oy, cap.snd, acc);
+                    pf_draw(cv_px, 240u, bh, 12, 14 + oy, cap.head, ink);
+                    pf_draw(cv_px, 240u, bh, 228 - pf_width(cap.snd), 14 + oy, cap.snd, acc);
                 } else {
-                    pf_draw(cv_px, 240u, bh, 10, 215 + oy, cap.snd, acc);
+                    pf_draw(cv_px, 240u, bh, 12, 14 + oy, cap.snd, acc);
                 }
             } else {
-                pf_draw(cv_px, 240u, bh, 10, 208 + oy, cap.lab, ink);
-                pf_draw(cv_px, 240u, bh, 230 - pf_width(cap.val), 208 + oy, cap.val, cap.bar >= 0 ? acc : ink);
+                pf_draw(cv_px, 240u, bh, 12, 12 + oy, cap.lab, ink);
+                pf_draw(cv_px, 240u, bh, 228 - pf_width(cap.val), 12 + oy, cap.val, cap.bar >= 0 ? acc : ink);
                 if (cap.bar >= 0) {                                          /* a bar of blocks: 36 of 4 px */
                     int32_t on = (cap.bar * 36 + 63) / 127, b;
                     for (b = 0; b < 36; b++)
-                        pf_rect(cv_px, 240u, bh, 10 + b * 6, 225 + oy, 4, 4, b < on ? acc : dim);
+                        pf_rect(cv_px, 240u, bh, 12 + b * 6, 28 + oy, 4, 4, b < on ? acc : dim);
                 }
             }
         }
@@ -429,8 +427,6 @@ static void cat_tick(void)
         y0 = !cat.box[3] ? ny0 : !f->h ? oy0 : oy0 < ny0 ? oy0 : ny0;
         y1 = oy1 > ny1 ? oy1 : ny1;
         cat.box[0] = f->x; cat.box[1] = f->y; cat.box[2] = f->w; cat.box[3] = f->h;
-        if (y1 >= 56u)
-            y1 = 64u;                                                        /* (his shadow goes with him) */
         if (!cat.full && y1 > y0)
             scene_rows(y0, y1 > CAT_SCENE ? CAT_SCENE : y1);
     }
@@ -568,7 +564,7 @@ static void m1_draw(void)
             cat.full = 0;
             scene_rows(0, ROOM_G);
         } else if (words) {
-            scene_rows(CAP_GY, ROOM_G);
+            scene_rows(0, CAP_GY);
         }
     }
     if (wake == 2)

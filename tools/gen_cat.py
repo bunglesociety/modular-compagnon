@@ -2,7 +2,10 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Alexis Arakis (Bungle Society)
 """The little black cat who lives in the Modular One SMK-37's screen: every pose drawn here as one silhouette on an
-80 x 68 grid (x3 on the 240 x 240 screen, the bottom 36 px are the sound band), every animation a clip of frames.
+80 x 80 grid (x3 on the 240 x 240 screen), every animation a clip of frames. He sits on the bottom of the screen (his
+floor), 1.2 x the size he was designed at: the poses are drawn in design units (feet on row 62) and VIEW scales the
+shapes around his feet and sets them down on row 79; the small pixel patterns (eyes, mouth, whiskers, the little
+things around him) are placed at the scaled points but drawn at their own size, so nothing comes apart.
 
 Out: build/gen/cat_sprites.h (palette RGB565, run-length frames, clips) for firmware/src/m1_draw.c.
      --preview DIR: each clip as a GIF, decoded back from the header's data (what the firmware will draw).
@@ -10,7 +13,20 @@ Out: build/gen/cat_sprites.h (palette RGB565, run-length frames, clips) for firm
 Frame data: a bounding box, then bytes (n-1) << 4 | colour, colour 0 = see-through, rows left to right."""
 import math, os, sys
 
-G, SCENE = 80, 68
+G, SCENE = 80, 80
+VIEW = {"k": 1.2, "ax": 40.0, "ay": 62.0, "dy": 17.0}   # scale around the feet, then down to the bottom row
+
+
+def T(x, y):
+    v = VIEW
+    return (v["ax"] + (x - v["ax"]) * v["k"], v["ay"] + (y - v["ay"]) * v["k"] + v["dy"])
+
+
+class anchor:
+    """a pose against an edge scales around that edge (griffes on the right, territoire on the left)"""
+    def __init__(self, ax): self.ax = ax
+    def __enter__(self): self.old = VIEW["ax"]; VIEW["ax"] = self.ax
+    def __exit__(self, *a): VIEW["ax"] = self.old
 
 # ------------------------------------------------------------------ palette (0 = see-through)
 PAL = [None, "#17141d", "#36323f", "#2b2733", "#57516a", "#a59ebd", "#f0a2b6", "#f4a3b6", "#f3cf5a",
@@ -20,13 +36,28 @@ FUR = {"K", "D", "L"}
 
 
 class C:
+    """a canvas in final cells; ell / tri / stroke / put / line take design units (VIEW), pat an anchor in design units
+    and offsets in cells"""
     def __init__(self): self.m = {}
-    def put(self, x, y, k): self.m[(int(round(x)), int(round(y)))] = k
-    def ell(self, cx, cy, rx, ry, k="K"):
+    def raw(self, x, y, k): self.m[(int(round(x)), int(round(y)))] = k
+    def put(self, x, y, k): self.raw(*T(x, y), k)
+    def pat(self, x, y, offs, k, keep=False):
+        X, Y = T(x, y); X, Y = int(round(X)), int(round(Y))
+        for dx, dy in offs:
+            if keep: self.m.setdefault((X + dx, Y + dy), k)
+            else: self.m[(X + dx, Y + dy)] = k
+    def line(self, x0, y0, x1, y1, k):
+        (a, b), (c, d) = T(x0, y0), T(x1, y1)
+        n = int(max(abs(c - a), abs(d - b))) + 1
+        for i in range(n + 1): self.raw(a + (c - a) * i / n, b + (d - b) * i / n, k)
+    def _ell(self, cx, cy, rx, ry, k):
         for y in range(int(cy - ry - 1), int(cy + ry + 2)):
             for x in range(int(cx - rx - 1), int(cx + rx + 2)):
                 if ((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1.0: self.m[(x, y)] = k
+    def ell(self, cx, cy, rx, ry, k="K"):
+        X, Y = T(cx, cy); self._ell(X, Y, rx * VIEW["k"], ry * VIEW["k"], k)
     def tri(self, a, b, c, k="K"):
+        a, b, c = T(*a), T(*b), T(*c)
         def s(p, q, r): return (p[0] - r[0]) * (q[1] - r[1]) - (q[0] - r[0]) * (p[1] - r[1])
         for y in range(int(min(a[1], b[1], c[1])), int(max(a[1], b[1], c[1])) + 1):
             for x in range(int(min(a[0], b[0], c[0])), int(max(a[0], b[0], c[0])) + 1):
@@ -34,10 +65,11 @@ class C:
                 d1, d2, d3 = s(p, a, b), s(p, b, c), s(p, c, a)
                 if not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0)): self.m[(x, y)] = k
     def stroke(self, pts, r=1.0, k="K"):
+        pts = [T(*p) for p in pts]; r *= VIEW["k"]
         for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
             n = int(max(abs(x1 - x0), abs(y1 - y0)) * 3) + 1
             for i in range(n + 1):
-                t = i / n; self.ell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, r, k)
+                t = i / n; self._ell(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, r, k)
     def finish(self):
         """1 px outline round the whole silhouette, rim light top-left, a shade on the right."""
         body = set(self.m); out = {}; new = {}
@@ -77,40 +109,33 @@ class Head:
         c.tri(self.R(9.8, -3), self.R(9.5 + self.ear + f, -8.5 + abs(self.ear) + 2 * f), self.R(5.5, -6.5), "P")
     def face(self, c, eyes="open", mouth="w", look=0, whisk=True):
         for sx in (-1, 1):
-            ex, ey = self.R(sx * 5, 1); ex, ey = int(round(ex)), int(round(ey))
+            ex, ey = self.R(sx * 5, 1)
             if eyes == "open":
-                for dx in (0, 1):
-                    for dy in (-1, 0, 1): c.put(ex - 1 + dx + look, ey + dy, "Y")
-                c.put(ex - 1 + look, ey - 1, "H")
+                c.pat(ex, ey, [(-1 + dx + look, dy) for dx in (0, 1) for dy in (-1, 0, 1)], "Y")
+                c.pat(ex, ey, [(-1 + look, -1)], "H")
             elif eyes == "wide":
-                for dx in (-1, 0, 1):
-                    for dy in (-1, 0, 1, 2): c.put(ex + dx + look, ey + dy - 1, "Y")
-                c.put(ex - 1 + look, ey - 2, "H"); c.put(ex + look, ey, "E")
+                c.pat(ex, ey, [(dx + look, dy - 1) for dx in (-1, 0, 1) for dy in (-1, 0, 1, 2)], "Y")
+                c.pat(ex, ey, [(-1 + look, -2)], "H"); c.pat(ex, ey, [(look, 0)], "E")
             elif eyes == "half":
-                for dx in (-2, -1, 0, 1, 2): c.put(ex + dx, ey - 1, "F")
-                c.put(ex - 1, ey, "Y"); c.put(ex, ey, "Y")
+                c.pat(ex, ey, [(dx, -1) for dx in (-2, -1, 0, 1, 2)], "F"); c.pat(ex, ey, [(-1, 0), (0, 0)], "Y")
             elif eyes == "happy":
-                for dx, dy in ((-2, 1), (-1, 0), (0, -1), (1, 0), (2, 1)): c.put(ex + dx, ey + dy, "F")
+                c.pat(ex, ey, [(-2, 1), (-1, 0), (0, -1), (1, 0), (2, 1)], "F")
             elif eyes == "content":
-                for dx, dy in ((-2, 0), (-1, 1), (0, 1), (1, 1), (2, 0)): c.put(ex + dx, ey + dy, "F")
+                c.pat(ex, ey, [(-2, 0), (-1, 1), (0, 1), (1, 1), (2, 0)], "F")
             elif eyes == "squeeze":
-                for dx, dy in ((-sx, -1), (0, 0), (-sx, 1)): c.put(ex + dx, ey + dy, "F")
-            bx, by = self.R(sx * 8, 4); c.put(bx, by, "B"); c.put(bx + sx, by, "B")
-        nx, ny = self.R(0, 3); c.put(nx, ny, "P")
+                c.pat(ex, ey, [(-sx, -1), (0, 0), (-sx, 1)], "F")
+            c.pat(*self.R(sx * 8, 4), [(0, 0), (sx, 0)], "B")
+        c.pat(*self.R(0, 3), [(0, 0)], "P")
         if mouth in ("w", "mlem", "tongue"):
-            for dx, dy in ((-2, 4), (-1, 5), (0, 4), (1, 5), (2, 4)):
-                x, y = self.R(dx, dy); c.put(x, y, "F")
+            c.pat(*self.R(0, 4), [(-2, 0), (-1, 1), (0, 0), (1, 1), (2, 0)], "F")
             if mouth in ("mlem", "tongue"):
-                x, y = self.R(0, 5.6); c.put(x, y, "M"); c.put(x + 1, y, "M")
-                if mouth == "tongue": c.put(x, y + 1, "M")
+                c.pat(*self.R(0, 5.6), [(0, 0), (1, 0)] + ([(0, 1)] if mouth == "tongue" else []), "M")
         elif mouth == "o":
-            for dx, dy in ((-1, 4), (0, 4), (1, 4), (-1, 5), (0, 5), (1, 5), (0, 6)):
-                x, y = self.R(dx, dy); c.put(x, y, "M")
+            c.pat(*self.R(0, 4), [(-1, 0), (0, 0), (1, 0), (-1, 1), (0, 1), (1, 1), (0, 2)], "M")
         if whisk:
             for sx in (-1, 1):
-                for i in range(3):
-                    x, y = self.R(sx * (12 + i), 3); c.put(x, y, "L")
-                    x, y = self.R(sx * (12 + i), 5 + (i == 2)); c.put(x, y, "L")
+                c.pat(*self.R(sx * 12, 3), [(sx * i, 0) for i in range(3)], "L")
+                c.pat(*self.R(sx * 12, 5), [(sx * i, int(i == 2)) for i in range(3)], "L")
 
 
 # ------------------------------------------------------------------ poses
@@ -123,14 +148,13 @@ def sit(eyes="open", mouth="w", tail=0, look=0, tilt=0.0, ear=0, flat=0, nod=0, 
     for k, lx in enumerate((cx - 3, cx + 3)):
         if paws[k]: c.ell(lx, by - 1 - paws[k], 2.2, 1.6)
     c.finish(); h.ears(c)
-    for x in range(int(cx - 8), int(cx + 9)):
-        if abs(x - cx) > 2 and abs(tilt) < 0.05 and nod == 0: c.put(x, h.cy + 8, "D")
+    if abs(tilt) < 0.05 and nod == 0:
+        c.line(cx - 8, h.cy + 8, cx - 3, h.cy + 8, "D"); c.line(cx + 3, h.cy + 8, cx + 8, h.cy + 8, "D")
     for k, lx in enumerate((cx - 3, cx + 3)):
         if paw is not None and k == 0: continue
-        for y in range(int(by - 11), int(by - 1 - paws[k])): c.put(lx, y, "o")
+        c.line(lx, by - 11, lx, by - 2 - paws[k], "o")
     h.face(c, eyes, mouth, look)
-    if paw is not None:
-        for dx in (-1, 0, 1): c.put(paw[0] + dx, paw[1] + 1, "L")
+    if paw is not None: c.pat(paw[0], paw[1] + 1, [(-1, 0), (0, 0), (1, 0)], "L")
     return c
 
 
@@ -156,7 +180,7 @@ def cello(lick=0, eyes="content"):
     c.finish(); h.ears(c); h.face(c, eyes, "tongue" if lick else "w")
     leg = C(); leg.stroke([(cx + 9, by - 6), (cx + 15, by - 33)], 1.8); leg.ell(cx + 15.5, by - 34.5, 2.6, 2.3); leg.finish()
     c.m.update(leg.m)
-    for dx in (-1, 0, 1): c.put(cx + 15.5 + dx, by - 36, "P")
+    c.pat(cx + 15.5, by - 36, [(-1, 0), (0, 0), (1, 0)], "P")
     return c
 
 
@@ -172,17 +196,16 @@ def loaf(eyes="content", breath=0, cx=40, base=62):
     c.finish()
     c.tri((cx - 14.8, hy - 3), (cx - 14.5, hy - 7.5), (cx - 10.5, hy - 5.8), "P")
     c.tri((cx + 2.8, hy - 3), (cx + 2.5, hy - 7.5), (cx - 1.5, hy - 5.8), "P")
-    for x in (cx - 11, cx - 10, cx - 9, cx - 4, cx - 3, cx - 2): c.put(x, by - 2, "L")
-    c.put(cx - 9.5, by - 1, "o"); c.put(cx - 2.5, by - 1, "o")
+    c.line(cx - 11, by - 2, cx - 9, by - 2, "L"); c.line(cx - 4, by - 2, cx - 2, by - 2, "L")
+    c.pat(cx - 9.5, by - 1, [(0, 0)], "o"); c.pat(cx - 2.5, by - 1, [(0, 0)], "o")
     ey = hy + 1
     for ex in (cx - 11, cx - 1):
-        if eyes == "content":
-            for dx, dy in ((-2, 0), (-1, 1), (0, 1), (1, 1), (2, 0)): c.put(ex + dx, ey + dy, "F")
-        else:
-            for dx, dy in ((-2, 1), (-1, 0), (0, -1), (1, 0), (2, 1)): c.put(ex + dx, ey + dy, "F")
-        c.put(ex + (-3 if ex < cx - 6 else 3), ey + 3, "B"); c.put(ex + (-2 if ex < cx - 6 else 2), ey + 3, "B")
-    c.put(cx - 6, ey + 2, "P")
-    for dx, dy in ((-2, 3), (-1, 4), (0, 3), (1, 4), (2, 3)): c.put(cx - 6 + dx, ey + dy, "F")
+        if eyes == "content": c.pat(ex, ey, [(-2, 0), (-1, 1), (0, 1), (1, 1), (2, 0)], "F")
+        else: c.pat(ex, ey, [(-2, 1), (-1, 0), (0, -1), (1, 0), (2, 1)], "F")
+        sx = -1 if ex < cx - 6 else 1
+        c.pat(ex + 3 * sx, ey + 3, [(0, 0), (-sx, 0)], "B")
+    c.pat(cx - 6, ey + 2, [(0, 0)], "P")
+    c.pat(cx - 6, ey + 3, [(-2, 0), (-1, 1), (0, 0), (1, 1), (2, 0)], "F")
     return c
 
 
@@ -197,12 +220,15 @@ def back(cx=40, base=62, wiggle=0, eyes="happy"):
     h = Head(cx - 12, by - 9, flat=1); h.shape(c)
     c.finish(); h.ears(c); h.face(c, eyes, "w")
     for i, lx in enumerate((cx - 4, cx + 1, cx + 6, cx + 11)):
-        w = wiggle * (1 if i % 2 else -1); c.put(lx + w, by - 17, "P")
+        w = wiggle * (1 if i % 2 else -1); c.pat(lx + w, by - 17, [(0, 0)], "P")
     return c
 
 
 def up(cx=70, base=62, reach=0, eyes="squeeze"):
     """Standing on the hind legs against the right edge, front paws on the edge (griffes)."""
+    with anchor(78.0): return _up(cx, base, reach, eyes)
+
+def _up(cx, base, reach, eyes):
     c = C(); by = base
     c.stroke(bez((cx - 6, by - 2), (cx - 16, by - 2), (cx - 16, by - 10)), 1.3)
     c.ell(cx, by - 11, 7.5, 11)
@@ -217,6 +243,9 @@ def up(cx=70, base=62, reach=0, eyes="squeeze"):
 
 def rub(cx=16, base=62, push=0):
     """Rubbing his cheek on the left edge (territoire)."""
+    with anchor(2.0): return _rub(cx, base, push)
+
+def _rub(cx, base, push):
     c = C(); by = base
     c.stroke(bez((cx + 20, by - 9), (cx + 26, by - 16), (cx + 23, by - 25 + push)), 1.3)
     c.ell(cx + 10, by - 8, 12, 7)
@@ -227,39 +256,38 @@ def rub(cx=16, base=62, push=0):
 
 
 # ------------------------------------------------------------------ little things drawn with him
-def add(c, pts, k):
-    for x, y in pts: c.m.setdefault((x, y), k)
-    return c
-
 def bug(c, x, y, t):
-    add(c, [(x, y), (x + 1, y)], "b"); add(c, [(x - 1 if t % 4 < 2 else x + 2, y - 1)], "w"); return c
+    c.pat(x, y, [(0, 0), (1, 0)], "b", True); c.pat(x, y, [(-1 if t % 4 < 2 else 2, -1)], "w", True); return c
 
 def zzz(c, n=3):
     z4 = [(0, 0), (1, 0), (2, 0), (3, 0), (2, 1), (1, 2), (0, 3), (1, 3), (2, 3), (3, 3)]
     z5 = [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (3, 1), (2, 2), (1, 3), (0, 4), (1, 4), (2, 4), (3, 4), (4, 4)]
-    for gx, gy, g in ((50, 38, z4), (55, 30, z4), (61, 20, z5))[:n]: add(c, [(gx + a, gy + b) for a, b in g], "z")
+    for gx, gy, g in ((50, 38, z4), (55, 30, z4), (61, 20, z5))[:n]: c.pat(gx, gy, g, "z", True)
     return c
 
 def notes(c, k=0):
     for gx, gy in ((55, 26 - k), (60, 21 + k)):
-        add(c, [(gx + 1, gy + i) for i in range(4)] + [(gx + a, gy + b) for a, b in ((0, 3), (0, 4), (1, 4), (2, 0), (3, 1))], "n")
+        c.pat(gx, gy, [(1, i) for i in range(4)] + [(0, 3), (0, 4), (1, 4), (2, 0), (3, 1)], "n", True)
     return c
 
 def hearts(c, n):
-    for k in range(n):
-        x, y = 10 + k * 6, 30 - k * 5
-        add(c, [(x + a, y + b) for a, b in ((0, 0), (2, 0), (-1, 1), (0, 1), (1, 1), (2, 1), (3, 1), (0, 2), (1, 2), (2, 2), (1, 3))], "h")
+    with anchor(2.0):
+        for k in range(n):
+            c.pat(10 + k * 6, 30 - k * 5, [(0, 0), (2, 0), (-1, 1), (0, 1), (1, 1), (2, 1), (3, 1), (0, 2), (1, 2), (2, 2), (1, 3)], "h", True)
     return c
 
 def marks(c, n):
-    add(c, [(79 - (k % 2), 34 + i * 4 + k) for i in range(n) for k in range(4)], "L"); return c
+    for i in range(n):
+        Y = int(round(T(78, 34 + i * 4)[1]))
+        for k in range(4): c.m.setdefault((79 - (k % 2), Y + k), "L")
+    return c
 
 def dust(c, xs):
-    for x in xs: add(c, [(x + a, 61 + b) for a, b in ((0, 0), (1, 0), (0, -1), (-1, 0))], "F")
+    for x in xs: c.pat(x, 61, [(0, 0), (1, 0), (0, -1), (-1, 0)], "F", True)
     return c
 
 def quest(c):
-    add(c, [(22, 22), (23, 21), (24, 21), (25, 22), (25, 23), (24, 24), (24, 25), (24, 27)], "n"); return c
+    c.pat(22, 22, [(0, 0), (1, -1), (2, -1), (3, 0), (3, 1), (2, 2), (2, 3), (2, 5)], "n", True); return c
 
 
 # ------------------------------------------------------------------ clips: (name, loop, [(canvas, ms)])
@@ -317,11 +345,11 @@ for i in range(16):
     fr.append((bug(sit("open", look=1, tilt=(0, 0.22, 0.22, 0, -0.22, -0.22)[(i // 3) % 6]), bx, by_, i), 100))
 for i in range(18):
     c = side(cx=34, crouch=4, tail_up=0.2); dx = (-1, 0, 1, 0)[i % 4]
-    c.m = {((x + dx) if x < 28 else x, y): k for (x, y), k in c.m.items()}
+    c.m = {((x + dx) if x < 26 else x, y): k for (x, y), k in c.m.items()}
     fr.append((bug(c, 64, 58, i), 100))
 for k, (x, h) in enumerate(((40, 4), (47, 9), (54, 10), (60, 6), (64, 0))):
     c = side(cx=x, phase=1 if k < 4 else 0, crouch=0 if k < 4 else 3, tail_up=1.5)
-    c.m = {(a, b - h): v for (a, b), v in c.m.items()}
+    c.m = {(a, b - round(h * VIEW["k"])): v for (a, b), v in c.m.items()}
     fr.append((bug(c, 64, 58, k) if k < 2 else c, 100))
 fr += [(side(cx=64, crouch=4, eyes="squeeze"), 100)] * 8 + [(bug(side(cx=64, facing=-1), 24, 40 - i, i), 100) for i in range(12)]
 fr += walk(64, 40, -1) + [(sit("open"), 300)]
