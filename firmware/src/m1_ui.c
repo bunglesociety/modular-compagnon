@@ -59,11 +59,11 @@ static struct {
 /* GLOBE, the settings: K2 .. K7 one each. Kept with the settings, in bytes no engine uses: favorites.factory[13]
  * 24..31 (VILLE's favorites are bits of bytes 0..1; Modular One shows none). [0] 'M' once written. */
 enum { G1_CH, G1_VEL, G1_TUNE, G1_PADS, G1_SCR, G1_CAT, G1_N };
-static const char *const G1_NAME[G1_N] = {"CANAL MIDI", "VELOCITE", "ACCORDAGE", "PADS", "VEILLE", "LE CHAT"};
-static const char *const G1_VEL_N[4] = {"NORMALE", "DOUCE", "DURE", "FIXE"};
-static const char *const G1_PADS_N[4] = {"TAMISEE", "DOUCE", "CLAIRE", "VIVE"};
-static const char *const G1_SCR_N[5] = {"JAMAIS", "5 MIN", "15 MIN", "30 MIN", "60 MIN"};
-static const char *const G1_CAT_N[3] = {"VIVANT", "CALME", "SAGE"};
+static const char *const G1_NAME[G1_N] = {"MIDI CHANNEL", "VELOCITY", "TUNING", "PADS", "SLEEP", "THE CAT"};
+static const char *const G1_VEL_N[4] = {"NORMAL", "SOFT", "HARD", "FIXED"};
+static const char *const G1_PADS_N[4] = {"DIM", "SOFT", "BRIGHT", "VIVID"};
+static const char *const G1_SCR_N[5] = {"NEVER", "5 MIN", "15 MIN", "30 MIN", "60 MIN"};
+static const char *const G1_CAT_N[3] = {"LIVELY", "CALM", "QUIET"};
 #define M1G (favorites.factory[13] + 24)
 enum { M1G_MAGIC, M1G_VEL, M1G_PADS, M1G_CAT };
 
@@ -157,9 +157,9 @@ enum { MP_MAGIC, MP_ATYPE, MP_ARATE, MP_AOCT, MP_BPM };
 enum { M1_B_ARP = 6, M1_B_CHORD = 9 };
 #define MP_NATYPE 13u
 static const uint8_t MP_ATYPE_V[MP_NATYPE] = {1, 2, 3, 7, 4, 5, 8, 9, 10, 11, 12, 13, 14};   /* params.c N_AMODE */
-static const char *const MP_ATYPE_N[MP_NATYPE] = {"MONTE", "DESCEND", "MONTE-DESC", "DESC-MONTE", "HASARD",
-                                                   "ORDRE JOUE", "MONTE +8", "CONVERGE", "DIVERGE", "PINKY",
-                                                   "POUCE", "PROMENADE", "ACCORDS"};
+static const char *const MP_ATYPE_N[MP_NATYPE] = {"UP", "DOWN", "UP-DOWN", "DOWN-UP", "RANDOM",
+                                                   "AS PLAYED", "UP +8", "CONVERGE", "DIVERGE", "PINKY",
+                                                   "THUMB", "WALK", "CHORDS"};
 #define MP_NRATE 7u
 static const uint8_t MP_RATE_V[MP_NRATE] = {6, 0, 1, 4, 2, 5, 3};                              /* N_DIV, slow first */
 static const char *const MP_RATE_N[MP_NRATE] = {"1/2", "1/4", "1/8", "1/8 T", "1/16", "1/16 T", "1/32"};
@@ -303,7 +303,7 @@ static void mp_turn(uint32_t k, int32_t s)
     if (k == 0) {
         mp_show("ARP", MP_ATYPE_N[M1P[MP_ATYPE]]);
     } else if (k == 1) {
-        mp_show("VITESSE", MP_RATE_N[M1P[MP_ARATE]]);
+        mp_show("SPEED", MP_RATE_N[M1P[MP_ARATE]]);
     } else {
         mp_tempo(b);
         mp_show("TEMPO", b);
@@ -346,7 +346,7 @@ static void m1_btn(uint32_t id, int down)
         break;
     case M1_B_CHORD:                                                         /* the A 440 */
         m1_la ^= 1u;
-        mp_show("LA 440", m1_la ? "ON" : "OFF");
+        mp_show("A 440", m1_la ? "ON" : "OFF");
         break;
     case 10:                                                                 /* GLOBE: the settings */
         m1.globe ^= 1u;

@@ -128,9 +128,9 @@ static void cat_frame(uint32_t fi)
 }
 
 /* ------------------------------------------------------------ the floor's words */
-static const char *const M1_F_NAME[4] = {"JOUR/NUIT", "FM", "TEMPS", "ECHO"};
-static const char *const M1_B_NAME[18] = {"ONDE 1", "ONDE 2", "", "", "OCTAVE", "OCTAVE", "ARP", "REPEAT", "GAMME",
-                                          "ACCORD", "REGLAGES", "", "", "", "VINTAGE", "", "", ""};   /* (the tape's: M1T_TAPE) */
+static const char *const M1_F_NAME[4] = {"DAY/NIGHT", "FM", "TIME", "ECHO"};
+static const char *const M1_B_NAME[18] = {"WAVE 1", "WAVE 2", "", "", "OCTAVE", "OCTAVE", "ARP", "REPEAT", "SCALE",
+                                          "CHORD", "SETTINGS", "", "", "", "VINTAGE", "", "", ""};   /* (the tape's: M1T_TAPE) */
 static struct {
     char lab[20], val[20], head[24];
     const char *snd;
@@ -173,7 +173,7 @@ static int m1_caption(void)
         case M1T_PAD: str_cpy(cap.lab, cap.snd, sizeof cap.lab); break;   /* the sound picked, a moment */
         case M1T_KNOB: str_cpy(cap.lab, M1_K_NAME[m1.what % M1_NK], sizeof cap.lab); cap.bar = m1.value; break;
         case M1T_FADER:
-            str_cpy(cap.lab, m1.what == 1u && VM_TOWN((uint32_t)M1T->p[P_E0]) ? "MONTEE" : M1_F_NAME[m1.what & 3u],
+            str_cpy(cap.lab, m1.what == 1u && VM_TOWN((uint32_t)M1T->p[P_E0]) ? "RISE" : M1_F_NAME[m1.what & 3u],
                     sizeof cap.lab);
             cap.bar = m1.value;
             break;
@@ -183,15 +183,15 @@ static int m1_caption(void)
             str_cpy(cap.val, m1.hval, sizeof cap.val);
             break;
         case M1T_WAVE:
-            str_cpy(cap.lab, m1.what == 1u ? "ONDE 1" : "ONDE 2", sizeof cap.lab);
-            str_cpy(cap.val, m1.value < 22 ? "SCIE" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "CARRE",
+            str_cpy(cap.lab, m1.what == 1u ? "WAVE 1" : "WAVE 2", sizeof cap.lab);
+            str_cpy(cap.val, m1.value < 22 ? "SAW" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "SQUARE",
                     sizeof cap.val);
             break;
         case M1T_TAPE:
             if (fm1_ms - m1.msg_ms < 2500u && m1.msg[0]) {                   /* kept, erased, full, ...: the words alone */
                 str_cpy(cap.lab, m1.msg, sizeof cap.lab);
             } else if (pl_count) {
-                str_cpy(cap.lab, demo_on ? "LECTURE" : "MAGNETO", sizeof cap.lab);
+                str_cpy(cap.lab, demo_on ? "PLAYING" : "TAPE", sizeof cap.lab);
                 str_cpy(cap.val, m1_piece(), sizeof cap.val);
             }
             break;
@@ -504,10 +504,10 @@ static void m1_globe_draw(int all)
     if (all) {
         lcd_fill(0, 0, 240, 240, G1_BG);
         g1_strip(2u, 36u, G1_BG);
-        pf_draw(cv_px, 240u, 36u, 10, 14, "REGLAGES", swap16(G1_INK));
+        pf_draw(cv_px, 240u, 36u, 10, 14, "SETTINGS", swap16(G1_INK));
         cv_blit(0, 2);
         g1_strip(208u, 30u, G1_BG);
-        pf_draw(cv_px, 240u, 30u, 10, 10, "GLOBE: RETOUR", swap16(G1_DIM));
+        pf_draw(cv_px, 240u, 30u, 10, 10, "GLOBE: BACK", swap16(G1_DIM));
         cv_blit(0, 208);
     }
     for (r = 0; r < G1_N; r++) {
