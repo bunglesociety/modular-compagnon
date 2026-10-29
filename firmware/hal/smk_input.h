@@ -435,8 +435,32 @@ static void fm1__frame(void)
 #define SMK_PAD_OFF 12u           /* below base + this: released */
 #define SMK_PAD_PEAKN 3u          /* samples (2.4 ms apart) for the peak */
 
+/* Modular One: the pads as the UI's own buttons (smk_pad_free set): hits and releases queue here, no notes */
+#define SMK_PADQ 16u
+static volatile uint8_t smk_pad_free;
+static volatile uint16_t smk_padev[SMK_PADQ];
+static volatile uint8_t smk_padev_w, smk_padev_r;
+static int32_t smk_padev_take(void)                    /* the next pad event: pad << 8 | velocity (0 = release), -1 none */
+{
+    uint8_t r = smk_padev_r;
+    int32_t e;
+    if (r == smk_padev_w)
+        return -1;
+    e = smk_padev[r];
+    smk_padev_r = (uint8_t)((r + 1u) % SMK_PADQ);
+    return e;
+}
+
 static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or release (0): its white key */
 {
+    if (smk_pad_free) {
+        uint8_t w = smk_padev_w;
+        if ((uint8_t)(w + 1u) % SMK_PADQ != smk_padev_r) {
+            smk_padev[w] = (uint16_t)(pad << 8 | (vel & 0x7Fu));
+            smk_padev_w = (uint8_t)((w + 1u) % SMK_PADQ);
+        }
+        return;
+    }
     int32_t n0 = smk_pad_piano ? SMK_PIANO_NOTE[pad] : (int32_t)SMK_WHITE_NOTE[SMK_WHITE_OF_PAD(pad)];
     uint32_t n, bit;
     if (vel) {

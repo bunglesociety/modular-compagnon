@@ -305,6 +305,9 @@ static void fm1_main(void)
     kb_boot_hold = 0;
     lcd_fill(0, 0, 240, 240, T_BG);
     scrn.idle = fm1_ms;                        /* (MENU > SCREEN OFF: from here) */
+#if MODULAR_ONE
+    m1_init();
+#endif
 
     for (;;) {
         uint32_t m = fm1_ms;
@@ -391,6 +394,19 @@ static void fm1_main(void)
         felucca_dbg.page = ui.page;
         felucca_dbg.home = ui.home;
         felucca_dbg.stage = 1;
+#if MODULAR_ONE
+        m1_input();                                   /* Modular One: its own controls and screen (m1_ui.c, m1_draw.c) */
+        settings_poll();
+        felucca_dbg.stage = 2;
+        smk_wheels();
+        m1_leds();
+        padled_flush();
+        m1_draw();
+        felucca_dbg.stage = 9;
+        while (fm1_ms - m < 15u) {
+            m1_input();
+            smk_wheels();
+#else
         ui_input();
         settings_poll();                              /* queued settings save: only while stopped */
         autosave_poll();                              /* (1.2) the music, stopped and idle: project.c */
@@ -411,6 +427,7 @@ static void fm1_main(void)
 #if BOARD_SMK37
             smk_wheels();                       /* (bends follow the wheel, not the screen) */
             smk_grid();
+#endif
 #endif
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */

@@ -232,8 +232,20 @@ static uint32_t div_samples(uint32_t div)
 /* the delay's TIME (params.c N_DTIME): N_DIV's ten (div_samples), then 1.5.1's dotted 1/8D 1/16D 1/4D (10, 11, 12: 3/4,
  * 3/8, 3/2 of a quarter); at most DLY_LEN - 1 samples (1.486 s): 1/4D clamps at 60 BPM and below (1/2 below 81) */
 static const uint8_t DIV_DOT[3] = {2, 3, 1};           /* 3 quarters >> this */
+#if MODULAR_ONE
+static volatile uint32_t m1_dly_target;   /* Modular One: the echo TIME fader, samples (0 = the tempo divisions) */
+static uint32_t m1_dly_cur = 11000u;
+static volatile uint8_t m1_vintage;       /* Modular One: FX, the vintage (m1_vintage_block) */
+#endif
 static uint32_t delay_samples(void)
 {
+#if MODULAR_ONE
+    if (m1_dly_target) {                               /* free time, gliding like a BBD clock (no click) */
+        int32_t d = (int32_t)m1_dly_target - (int32_t)m1_dly_cur;
+        m1_dly_cur = (uint32_t)((int32_t)m1_dly_cur + (d > 0 ? (d + 15) / 16 : d / 16));
+        return m1_dly_cur < 16u ? 16u : m1_dly_cur >= DLY_LEN ? DLY_LEN - 1u : m1_dly_cur;
+    }
+#endif
     uint32_t d = (uint32_t)song.g[G_DTIME];
     uint32_t s = d - 10u < 3u ? (beat_samples() * 3u) >> DIV_DOT[d - 10u] : div_samples(d);
     return s < 16u ? 16u : s >= DLY_LEN ? DLY_LEN - 1u : s;
