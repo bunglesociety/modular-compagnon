@@ -125,6 +125,8 @@ static volatile struct {
     uint8_t enc_last[FM1_NENC], enc_hist[FM1_NENC];
     int16_t enc_cnt[FM1_NENC];   /* transitions, + = B leads */
     int16_t enc_steps[FM1_NENC];
+    uint8_t enc_idle[FM1_NENC];  /* frames since the encoder's last transition (its half-turns forgotten after 64) */
+    uint8_t key_quiet;           /* frames since a key contact changed (the encoders ignore the matrix till 3) */
     uint16_t pad_raw[SMK_NPAD], pad_base[SMK_NPAD], pad_peak[SMK_NPAD];
     uint8_t pad_st[SMK_NPAD];    /* 0 idle, 1..SMK_PAD_PEAKN collecting the peak, 0x80 on */
     uint8_t pad_low[SMK_NPAD];
@@ -345,6 +347,7 @@ static void smk__keys(uint32_t now)
             fm1_in.ks_rel[k] = 0;
             continue;
         }
+        fm1_in.key_quiet = 0;                             /* (a contact moved: the encoders' row may ghost) */
         if (s == 0u) {                                    /* contact 1 open: a release after a few frames */
             if (++fm1_in.ks_rel[k] < SMK_KEY_REL)
                 continue;
@@ -389,11 +392,22 @@ static void smk__buttons(void)
     }
 }
 
-static void smk__encoders(void)                    /* stock decoder: 3-state window, 4 counts a cycle */
+/* Stock decoder: 3-state window, 4 counts a cycle. Two guards (Modular One on the Elite: chords played on the keys
+ * turned the knobs by themselves, DETUNE a semitone off until the next sound): the encoders' row shares the key
+ * matrix's columns, so while a key contact moves (and 2 frames after) the encoders are not read, their state kept
+ * as it was; and counts that never make a whole detent are forgotten after 64 frames (~0.1 s) still, so stray
+ * ones cannot add up over minutes into a step. */
+static void smk__encoders(void)
 {
-    uint32_t e;
+    uint32_t e, ghost = fm1_in.key_quiet < 3u;
+    if (fm1_in.key_quiet < 255u)
+        fm1_in.key_quiet++;
     for (e = 0; e < FM1_NENC; e++) {
         uint32_t cur = smk__closed(SMK_ENCC[e][0]) | smk__closed(SMK_ENCC[e][1]) << 1, h;
+        if (fm1_in.enc_idle[e] < 255u && ++fm1_in.enc_idle[e] == 64u)
+            fm1_in.enc_cnt[e] = 0;
+        if (ghost && fm1_in.enc_last[e] != 0xFF)
+            continue;
         if (fm1_in.enc_last[e] == 0xFF) {           /* first frame */
             fm1_in.enc_last[e] = (uint8_t)cur;
             fm1_in.enc_hist[e] = (uint8_t)(cur * 0x15u);
@@ -407,6 +421,7 @@ static void smk__encoders(void)                    /* stock decoder: 3-state win
             continue;
         h = ((uint32_t)fm1_in.enc_hist[e] << 2 | cur) & 0x3Fu;
         fm1_in.enc_hist[e] = (uint8_t)h;
+        fm1_in.enc_idle[e] = 0;
         if (h == 0x07u || h == 0x1Eu || h == 0x21u || h == 0x38u)
             fm1_in.enc_cnt[e]--;                     /* A leads */
         else if (h == 0x0Bu || h == 0x12u || h == 0x2Du || h == 0x34u)

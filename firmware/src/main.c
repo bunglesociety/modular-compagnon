@@ -139,6 +139,25 @@ static void smk_wheels(void)
     if (m > mhi)
         mhi = m;
     d = p - pc;
+#if MODULAR_ONE
+    {   /* the wheel let go: its spring brings it back towards the centre, but on the Elite not within DEAD of the
+         * first reading (it stayed almost a semitone sharp). It came back towards the centre and has rested there
+         * 0.25 s, less than half its travel away: that is the centre now. (A bend held away from the centre is never
+         * taken for it: the last move went outwards.) */
+        static int32_t still_p, still_t, inward;
+        int32_t span = phi - plo, dp = p - still_p;
+        if (dp > 3 || dp < -3) {
+            int32_t a0 = still_p - pc, a1 = p - pc;
+            inward = (a1 < 0 ? -a1 : a1) < (a0 < 0 ? -a0 : a0);
+            still_p = p;
+            still_t = (int32_t)fm1_ms;
+        } else if (inward && (int32_t)fm1_ms - still_t > 250 && d * 4 < span && -d * 4 < span) {
+            pc = p;
+            d = 0;
+            inward = 0;
+        }
+    }
+#endif
     if (d > -DEAD && d < DEAD) {
         b = 0;
         if (++rest > 200) {                        /* resting: the centre follows a slow drift */
