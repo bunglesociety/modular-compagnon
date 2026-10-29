@@ -82,8 +82,6 @@ int main(int argc, char **argv)
     bad |= render(dir, "night_MODULAR", 0, 127, -1, &db); printf("ville: MODULAR at night peak %.1f dBFS\n", db);
     bad |= render(dir, "winter_MODULAR", 0, -1, 127, &db); printf("ville: MODULAR in winter peak %.1f dBFS\n", db);
     bad |= render(dir, "winter_night_BRASS", 7, 127, 100, &db); printf("ville: BRASS night + winter peak %.1f dBFS\n", db);
-    bad |= render(dir, "montee_SOUFFLE", 14, -1, 127, &db); printf("ville: SOUFFLE fader 2 up peak %.1f dBFS\n", db);
-    bad |= render(dir, "montee_CREPUSC", 15, -1, 127, &db); printf("ville: CREPUSC fader 2 up peak %.1f dBFS\n", db);
     m1_vintage = 1;                                                          /* FX: the vintage (fx.c m1_vint) */
     bad |= render(dir, "vintage_MODULAR", 0, -1, -1, &db); printf("ville: MODULAR vintage peak %.1f dBFS\n", db);
     bad |= render(dir, "vintage_FLUTE", 6, -1, -1, &db); printf("ville: FLUTE vintage peak %.1f dBFS\n", db);

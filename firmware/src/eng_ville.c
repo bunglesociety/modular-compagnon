@@ -127,10 +127,7 @@ static void vl_town(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod
 {
     const int16_t *p = t->p;
     vl_part_t *pp = vl_part(t);
-    /* As the Amorph patch plays it by default (M1 Night 0.315, M1 Rise 0.157) with fader 1 at day and fader 2 down:
-     * the faders go on from there. The vibrato stays the patch's gentle one (5.2 Hz, +-3 cents): fader 2 raises the
-     * Montee's brightness, not the vibrato (a deep fast vibrato with the fader up was not the patch's sound). */
-    int32_t mont = 5145 + mulq15(pp->winter, 27622);     /* 0.157 .. 1 */
+    int32_t mont = pp->winter;                           /* the FM fader is the Montee here */
     int32_t cut = clamp(((((int32_t)p[P_E3] << 8) + m->cutoff) * 129 >> 7) - mulq15(night, 5243), 0, 32767);
     int32_t res = clamp((((int32_t)p[P_E4] << 8) * 129 >> 7) + mulq15(night, 3277), 0, 32767);
     uint32_t tim = (uint32_t)(p[P_E1] * 12 >> 7) % 12u, i;
@@ -156,7 +153,7 @@ static void vl_town(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod
         g = mulq15(g, 29491);
     }
     lpg = mt_lerp(MT_FMLP_Q15, night >> 3, 16);
-    vib = (mulq15(sine_i(pp->pwm * 17u), 5145) * 47) >> 15;   /* ~5.2 Hz, +-3 cents (the patch's Rise 0.157) */
+    vib = (mulq15(sine_i(pp->pwm * 17u), mont) * 47) >> 15;   /* ~5.2 Hz, +-20 cents at full Montee */
     inc1 = m->inc + (uint32_t)((int32_t)(m->inc >> 12) * vib);
     inc2 = (uint32_t)(((uint64_t)m->inc * MT_DET_Q16[clamp((p[P_E5] - 64) * 3 + 192, 0, 384)]) >> 16);
     inc2 += (uint32_t)((int32_t)(inc2 >> 12) * vib);
@@ -245,7 +242,7 @@ static void vl_flute(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmo
 static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     if (VM_TOWN((uint32_t)t->p[P_E0])) {
-        vl_town(t, v, out, n, m, 10322 + mulq15(vl_part(t)->night, 22446));   /* (night 0.315 .. 1) */
+        vl_town(t, v, out, n, m, vl_part(t)->night);
         return;
     }
     {
