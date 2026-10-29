@@ -252,9 +252,15 @@ static inline uint32_t grass_kind(uint32_t x, uint32_t y)                   /* y
 }
 static inline int grass_front(uint32_t x) { return ((x * 2246822519u) >> 29) < 3u; }   /* ~3 in 8 columns */
 
+/* GLOBE SCREEN: the paper and its grain by day, warmer and deeper (the panel shows them lighter than they are) */
+static const uint8_t ROOM_WARM[4][2][3] = {
+    {{0xd6, 0xae, 0x78}, {0xcc, 0xa2, 0x6c}}, {{0xc4, 0x92, 0x58}, {0xb8, 0x88, 0x50}},
+    {{0xb0, 0x7a, 0x42}, {0xa4, 0x70, 0x3c}}, {{0x98, 0x62, 0x30}, {0x8c, 0x5a, 0x2c}},
+};
 static uint16_t room_col(uint32_t k, int32_t w, int32_t n)
 {
-    uint16_t d = M1_RGB(ROOM_DAY[k][0], ROOM_DAY[k][1], ROOM_DAY[k][2]);
+    const uint8_t *dc = k < 2u ? ROOM_WARM[((M1G[M1G_WARM] ^ 2u) % 4u)][k] : ROOM_DAY[k];
+    uint16_t d = M1_RGB(dc[0], dc[1], dc[2]);
     uint16_t s = M1_RGB(ROOM_SNOW[k][0], ROOM_SNOW[k][1], ROOM_SNOW[k][2]);
     uint16_t nn = M1_RGB(ROOM_NIGHT[k][0], ROOM_NIGHT[k][1], ROOM_NIGHT[k][2]);
     return ux_mix(ux_mix(d, s, w * 100 / 127), nn, n * 100 / 127);
@@ -265,9 +271,9 @@ static void room_ink(uint16_t *ink, uint16_t *acc, uint16_t *dim)
 {
     int32_t n = cat.night < 0 ? 0 : cat.night;
     const uint8_t *rgb = M1_PAD_RGB[m1.pad];
-    uint16_t day = M1_RGB(0x4a, 0x38, 0x28), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
+    uint16_t day = ((M1G[M1G_WARM] ^ 2u) % 4u) < 2u ? M1_RGB(0x4a, 0x38, 0x28) : M1_RGB(0x2a, 0x1a, 0x10), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
     *ink = n > 64 ? ngt : day;
-    *acc = n > 64 ? ux_mix(pad, *ink, 70) : M1_RGB(0x8a, 0x3c, 0x16);   /* the value: a burnt orange by day */
+    *acc = n > 64 ? ux_mix(pad, *ink, 70) : ((M1G[M1G_WARM] ^ 2u) % 4u) < 2u ? M1_RGB(0x8a, 0x3c, 0x16) : M1_RGB(0x5c, 0x1e, 0x08);   /* the value: a burnt orange by day */
     *dim = ux_mix(room_col(RC_WALL, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
 }
 
@@ -489,11 +495,11 @@ static void m1_globe_row(uint32_t r)
     uint16_t acc = ux_mix(M1_RGB(rgb[0], rgb[1], rgb[2]), G1_INK, 25);
     int hot = m1.grow == r && fm1_ms - m1.grow_ms < 3000u;
     const char *v = g1_vname(r, b);
-    g1_strip(40u + r * 28u, 28u, hot ? G1_HOT : G1_BG);
-    pf_draw(cv_px, 240u, 28u, 10, 9, k, swap16(hot ? acc : G1_DIM));
-    pf_draw(cv_px, 240u, 28u, 42, 9, G1_NAME[r], swap16(hot ? G1_INK : ux_mix(G1_INK, G1_BG, 20)));
-    pf_draw(cv_px, 240u, 28u, 230 - pf_width(v), 9, v, swap16(hot ? acc : G1_INK));
-    cv_blit(0, 40u + r * 28u);
+    g1_strip(38u + r * 24u, 24u, hot ? G1_HOT : G1_BG);
+    pf_draw(cv_px, 240u, 24u, 10, 7, k, swap16(hot ? acc : G1_DIM));
+    pf_draw(cv_px, 240u, 24u, 42, 7, G1_NAME[r], swap16(hot ? G1_INK : ux_mix(G1_INK, G1_BG, 20)));
+    pf_draw(cv_px, 240u, 24u, 230 - pf_width(v), 7, v, swap16(hot ? acc : G1_INK));
+    cv_blit(0, 38u + r * 24u);
 }
 
 /* the whole page once, then a row when it changes (and the highlight going out after 3 s) */
