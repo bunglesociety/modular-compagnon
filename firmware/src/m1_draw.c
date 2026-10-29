@@ -372,8 +372,10 @@ static void cat_play(uint32_t clip)
     cat.behaving = clip >= CAT_PETRIR;
 }
 
+/* (the leg-up wash, his toilette: the ones he does most) */
 static const uint8_t CAT_DAY_LIFE[] = {CAT_PETRIR, CAT_MLEM, CAT_VIDE, CAT_QUEUE, CAT_CELLO, CAT_CHASSE, CAT_TAPOTE,
-                                       CAT_TOILETTE, CAT_ROULADE, CAT_GRIFFES, CAT_FOLIE, CAT_TERRITOIRE, CAT_BAILLEMENT};
+                                       CAT_TOILETTE, CAT_ROULADE, CAT_GRIFFES, CAT_FOLIE, CAT_TERRITOIRE, CAT_BAILLEMENT,
+                                       CAT_CELLO, CAT_CELLO, CAT_CELLO, CAT_TOILETTE, CAT_TOILETTE};
 static const uint8_t CAT_NIGHT_LIFE[] = {CAT_ENDORT, CAT_PETRIR, CAT_BAILLEMENT, CAT_ENDORT};
 
 static int cat_night(void) { return cat.night > 96; }

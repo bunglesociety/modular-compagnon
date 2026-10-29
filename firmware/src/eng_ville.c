@@ -260,6 +260,9 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
                   + (((int32_t)v->mvel - 100) * 24);                          /* a hard key is a little brighter */
     uint32_t inc1 = m->inc, inc2;
     int32_t vib = 0;                                    /* pitch factor - 1, Q20 */
+    /* the output, level-matched by ear (momentary loudness of the presets): MODULAR, TAPE and FM sat 6 .. 9 dB
+     * under the others */
+    int32_t og = mode == VM_MODULAR ? 640 : mode == VM_TAPE ? 740 : mode == VM_FM ? 590 : 256;
     tsvf_t f1c, f2c;
 
     /* pitch: the vibratos and the tape, then oscillator 2 (DTN, +-12 semitones) */
@@ -418,7 +421,7 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
         }
         ph0 += inc1;
         ph1 += inc2;
-        out[i] += voice_amp(s, m, i) << 1;
+        out[i] += voice_amp((s * og) >> 8, m, i) << 1;
     }
     pp->nz = (uint32_t)nz;
     v->ph[0] = ph0;
