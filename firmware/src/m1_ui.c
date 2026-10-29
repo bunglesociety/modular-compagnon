@@ -53,7 +53,7 @@ static struct {
 /* GLOBE, the settings: K2 .. K7 one each. Kept with the settings, in bytes no engine uses: favorites.factory[13]
  * 24..31 (VILLE's favorites are bits of bytes 0..1; Modular One shows none). [0] 'M' once written. */
 enum { G1_CH, G1_VEL, G1_TUNE, G1_PADS, G1_SCR, G1_CAT, G1_N };
-static const char *const G1_NAME[G1_N] = {"CANAL MIDI", "VELOCITE", "ACCORDAGE", "LUMIERE PADS", "VEILLE ECRAN", "LE CHAT"};
+static const char *const G1_NAME[G1_N] = {"CANAL MIDI", "VELOCITE", "ACCORDAGE", "PADS", "VEILLE", "LE CHAT"};
 static const char *const G1_VEL_N[4] = {"NORMALE", "DOUCE", "DURE", "FIXE"};
 static const char *const G1_PADS_N[4] = {"TAMISEE", "DOUCE", "CLAIRE", "VIVE"};
 static const char *const G1_SCR_N[5] = {"JAMAIS", "5 MIN", "15 MIN", "30 MIN", "60 MIN"};

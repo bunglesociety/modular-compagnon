@@ -470,10 +470,9 @@ static void m1_globe_draw(int all)
         lcd_fill(0, 0, 240, 240, G1_BG);
         g1_strip(2u, 36u, G1_BG);
         pf_draw(cv_px, 240u, 36u, 10, 14, "REGLAGES", swap16(G1_INK));
-        pf_draw(cv_px, 240u, 36u, 230 - pf_width("GLOBE: RETOUR"), 14, "GLOBE: RETOUR", swap16(G1_DIM));
         cv_blit(0, 2);
         g1_strip(208u, 30u, G1_BG);
-        pf_draw(cv_px, 240u, 30u, 10, 10, "MODULAR ONE  SMK-37", swap16(G1_DIM));
+        pf_draw(cv_px, 240u, 30u, 10, 10, "GLOBE: RETOUR", swap16(G1_DIM));
         cv_blit(0, 208);
     }
     for (r = 0; r < G1_N; r++) {
