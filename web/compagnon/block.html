@@ -1,0 +1,166 @@
+<style>
+/* Modular Compagnon, page bunglesociety.com: a Squarespace code block (HTML + CSS only, no script: the Basic plan).
+   The page itself is painted in the screen's old paper (below); the rest is scoped under .mcw. FR / EN: two radio
+   buttons, CSS only. tools/make_compagnon_site.py wraps this same block into the GitHub Pages home. */
+@import url("https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+/* the whole page on the paper: this block is only on this page, so these rules touch only it
+   (Squarespace 7.1: each section draws its colour in .section-background; the header and footer too) */
+html, body, #siteWrapper, #page, main#page, .page-section, .page-section > .section-background, .section-background,
+#footer-sections, #footer-sections .section-background, header#header, header#header .header-background-solid,
+.header-announcement-bar-wrapper { background-color: #dccaa4 !important; background-image: none !important; }
+header#header a, header#header .header-nav-item a, header#header .header-title a, header#header .header-burger-btn,
+#footer-sections, #footer-sections p, #footer-sections a { color: #4a3828 !important; }
+header#header .burger-inner > div { background-color: #4a3828 !important; }
+.mcw { --bg: #dccaa4; --grain: #d2be97; --panel: #e6d6b4; --dim: #7d6850; --ink: #4a3828; --green: #627e54; --warm: #9c5a3c;
+       --night: #232040; --shadow: rgba(74, 56, 40, .28);
+       background-color: var(--bg); background-image: radial-gradient(var(--grain) 1px, transparent 1.2px); background-size: 7px 7px;
+       color: var(--ink); font: 15px/1.65 "IBM Plex Mono", ui-monospace, Menlo, monospace;
+       padding: 28px clamp(16px, 4vw, 44px) 40px; box-sizing: border-box; text-align: left; }
+.mcw *, .mcw *::before, .mcw *::after { box-sizing: border-box; }
+.mcw p, .mcw h1, .mcw h2, .mcw h3, .mcw ul { margin: 0; padding: 0; color: var(--ink); text-transform: none; letter-spacing: normal; }
+.mcw a { color: var(--ink); }
+.mcw .px { font-family: "Silkscreen", "IBM Plex Mono", monospace !important; letter-spacing: .04em; font-weight: 400 !important; }
+
+/* the language switch: two radios, the words of the other language hidden */
+.mcw input.mcw-l { position: absolute; opacity: 0; pointer-events: none; }
+.mcw img.map { display: block; width: 100%; height: auto; margin: 8px 0 18px; border-radius: 6px; }
+.mcw .lang { display: flex; justify-content: flex-end; gap: 4px; font-family: "Silkscreen", monospace; font-size: 12px; color: var(--dim); }
+.mcw .lang label { cursor: pointer; padding: 2px 6px; color: var(--dim); }
+.mcw #mcw-fr:checked ~ .lang label[for="mcw-fr"], .mcw #mcw-en:checked ~ .lang label[for="mcw-en"] { color: var(--ink); text-decoration: underline; }
+.mcw #mcw-fr:checked ~ * .en, .mcw #mcw-en:checked ~ * .fr { display: none !important; }
+
+.mcw .hero { display: grid; grid-template-columns: 1.1fr 1fr; gap: 40px; align-items: center; padding: 26px 0 28px; }
+@media (max-width: 820px) { .mcw .hero { grid-template-columns: 1fr; gap: 26px; } }
+.mcw h1 { font-size: clamp(36px, 6.2vw, 62px) !important; line-height: .95 !important; margin: 0 0 18px; }
+.mcw .lead { font-size: 17px; margin-bottom: 22px; max-width: 520px; }
+.mcw .cta { display: flex; flex-wrap: wrap; gap: 14px; }
+.mcw a.btn { font-family: "Silkscreen", monospace; font-size: 15px; letter-spacing: .04em; text-decoration: none; padding: 13px 20px;
+             background: var(--ink); color: var(--bg); box-shadow: 4px 4px 0 var(--shadow); display: inline-block; }
+.mcw a.btn:hover { filter: brightness(1.18); }
+.mcw a.btn.ghost { background: transparent; color: var(--ink); outline: 3px solid var(--ink); outline-offset: -3px; box-shadow: none; }
+.mcw .note { font-size: 12.5px; color: var(--dim); margin-top: 14px; }
+.mcw .screen { background: #1d1b18; padding: 20px 20px 14px; border-radius: 10px; box-shadow: 8px 8px 0 var(--shadow); max-width: 440px; width: 100%; justify-self: center; }
+.mcw .screen img { display: block; width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; border: 2px solid #000; }
+.mcw .screen .lbl { color: #8c8678; font-family: "Silkscreen", monospace; font-size: 11px; letter-spacing: .08em; margin-top: 10px; display: flex; justify-content: space-between; gap: 10px; }
+
+.mcw section { padding: 30px 0 4px; border-top: 3px solid var(--ink); margin-top: 24px; }
+.mcw h2 { font-size: 22px !important; margin-bottom: 16px; }
+.mcw .story { max-width: 720px; font-size: 16px; }
+.mcw .story p + p { margin-top: 12px; }
+
+.mcw .family { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; background: var(--panel); border: 3px solid var(--ink); padding: 14px 18px; font-size: 14px; }
+.mcw .family b { font-family: "Silkscreen", monospace; font-weight: 400; letter-spacing: .04em; }
+.mcw .family .grow { flex: 1; min-width: 220px; }
+.mcw .family a { font-family: "Silkscreen", monospace; font-size: 13px; white-space: nowrap; }
+
+.mcw .feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+@media (max-width: 900px) { .mcw .feats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .mcw .feats { grid-template-columns: 1fr; } }
+.mcw .feat { background: var(--panel); border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--shadow); }
+.mcw .feat img { display: block; width: 100%; height: auto; aspect-ratio: 1; image-rendering: pixelated; border-bottom: 3px solid var(--ink); }
+.mcw .feat div { padding: 14px 16px 16px; }
+.mcw .feat h3 { font-size: 15px !important; margin-bottom: 6px; }
+.mcw .feat p { font-size: 13.5px; }
+
+.mcw .ctl { display: grid; grid-template-columns: 12em 1fr; gap: 6px 18px; max-width: 760px; font-size: 14px; }
+@media (max-width: 600px) { .mcw .ctl { grid-template-columns: 1fr; gap: 2px; } .mcw .ctl dd { margin-bottom: 8px !important; } }
+.mcw .ctl dt { font-family: "Silkscreen", monospace; font-size: 13px; letter-spacing: .03em; }
+.mcw .ctl dd { margin: 0; }
+
+.mcw ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+@media (max-width: 760px) { .mcw ol.steps { grid-template-columns: 1fr; } }
+.mcw ol.steps li { counter-increment: s; background: var(--panel); border: 3px solid var(--ink); padding: 16px 16px 14px; font-size: 14px; margin: 0; }
+.mcw ol.steps li::before { content: counter(s); font-family: "Silkscreen", monospace; font-size: 28px; display: block; line-height: 1; margin-bottom: 8px; color: var(--green); }
+.mcw .after { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.mcw .faq details { border-bottom: 2px dashed var(--dim); padding: 10px 0; }
+.mcw .faq summary { cursor: pointer; font-weight: 600; list-style: none; }
+.mcw .faq summary::-webkit-details-marker { display: none; }
+.mcw .faq summary::before { content: "▸ "; font-family: "Silkscreen", monospace; }
+.mcw .faq details[open] summary::before { content: "▾ "; }
+.mcw .faq p { margin: 8px 0 4px 18px; font-size: 14px; }
+.mcw .foot { margin-top: 34px; font-size: 12.5px; color: var(--dim); border-top: 3px solid var(--ink); padding-top: 12px; }
+.mcw .foot a { color: var(--dim); }
+</style>
+
+<div class="mcw">
+  <input type="radio" name="mcw-lang" id="mcw-fr" class="mcw-l" checked>
+  <input type="radio" name="mcw-lang" id="mcw-en" class="mcw-l">
+  <div class="lang"><label for="mcw-fr">FR</label>/<label for="mcw-en">EN</label></div>
+
+  <div class="hero">
+    <div>
+      <h1 class="px">Modular<br>Compagnon</h1>
+      <p class="lead"><span class="fr">Un firmware gratuit pour le clavier M-VAVE SMK-37 Elite. Seize sons venus de Modular Town, une commande pour chaque chose, un magnéto qui garde tes idées, et un petit chat noir qui vit dans l'écran.</span><span class="en">A free firmware for the M-VAVE SMK-37 Elite keyboard. Sixteen sounds from Modular Town, one control for each thing, a tape recorder that keeps your ideas, and a little black cat who lives in the screen.</span></p>
+      <p class="note" style="margin:0 0 22px"><span class="fr">Par Alexis Arakis, compositeur, Bungle Society</span><span class="en">By Alexis Arakis, composer, Bungle Society</span> · <a href="https://www.youtube.com/@bunglesociety" target="_blank" rel="noopener">YouTube</a></p>
+      <div class="cta">
+        <a class="btn" href="https://bunglesociety.github.io/modular-compagnon/install/" target="_blank" rel="noopener"><span class="fr">Installer</span><span class="en">Install</span></a>
+        <a class="btn ghost" href="https://github.com/bunglesociety/modular-compagnon" target="_blank" rel="noopener">GitHub</a>
+      </div>
+      <p class="note"><span class="fr">Gratuit et libre (GPL-3.0). Version bêta. Chrome ou Edge sur ordinateur.</span><span class="en">Free and open source (GPL-3.0). Beta. Chrome or Edge on a computer.</span></p>
+    </div>
+    <div class="screen">
+      <img src="https://bunglesociety.github.io/modular-compagnon/img/toilette.gif" alt="Modular Compagnon" width="240" height="240">
+      <div class="lbl"><span>M-VAVE SMK-37 ELITE</span><span>MODULAR COMPAGNON</span></div>
+    </div>
+  </div>
+
+  <div class="family">
+    <span class="grow"><b><span class="fr">La famille Modular</span><span class="en">The Modular family</span></b> <span class="fr">Modular Town, le synthé-ville pour ton ordinateur (un patch gratuit pour Amorph). Modular One, son petit frère sur le synthé FM-1. Modular Compagnon, le chat, sur le SMK-37.</span><span class="en">Modular Town, the town-synth for your computer (a free patch for Amorph). Modular One, its little brother on the FM-1 synth. Modular Compagnon, the cat, on the SMK-37.</span></span>
+    <a href="https://amorph.audio/patches/modular-town-v3/" target="_blank" rel="noopener">Modular Town →</a>
+    <a href="https://bunglesociety.github.io/modular-one/" target="_blank" rel="noopener">Modular One →</a>
+  </div>
+
+  <section>
+    <h2 class="px"><span class="fr">Un compagnon dans le clavier</span><span class="en">A companion in the keyboard</span></h2>
+    <div class="story"><p class="fr">Sur le SMK-37, l'écran ne montre plus des menus : un petit chat noir y vit. Il écoute quand tu joues, regarde le bouton que tu tournes, fait sa toilette, chasse un insecte, court partout quand l'envie le prend. Quand tu baisses le fader de la nuit, il s'endort, et il ne se réveille qu'au lever du jour.</p><p class="en">On the SMK-37 the screen no longer shows menus: a little black cat lives there. He listens when you play, looks at the knob you turn, washes, chases a bug, runs around when the mood takes him. When you lower the night fader he falls asleep, and wakes only when the day comes back.</p><p class="fr">Tout le reste est pensé pour écrire, pas pour programmer : ce que tu vois est ce que tu as. Seize pads, seize sons. Chaque potard et chaque fader fait une seule chose, écrite dessus. Pas de banque, pas de sous-menu.</p><p class="en">Everything else is made for writing, not for programming: what you see is what you get. Sixteen pads, sixteen sounds. Every knob and fader does one thing, written on it. No banks, no submenus.</p></div>
+  </section>
+
+  <section>
+    <h2 class="px"><span class="fr">Ce qu'il y a dedans</span><span class="en">What's inside</span></h2>
+    <div class="feats">
+      <div class="feat"><img src="https://bunglesociety.github.io/modular-compagnon/img/joue.gif" alt="" width="240" height="240" loading="lazy"><div><h3 class="px"><span class="fr">Seize sons</span><span class="en">Sixteen sounds</span></h3><p><span class="fr">Ceux de Modular Town et de Neon Town : Modular, Juno, Supersaw, cordes PWM, Tape, FM, Souffle, Crépuscule, la flûte Mellotron, Brass, Strings, Choir, Rain, Deep, Pulse, Memory.</span><span class="en">Modular Town's and Neon Town's: Modular, Juno, Supersaw, PWM strings, Tape, FM, Souffle, Crépuscule, the Mellotron flute, Brass, Strings, Choir, Rain, Deep, Pulse, Memory.</span></p></div></div>
+      <div class="feat"><img src="https://bunglesociety.github.io/modular-compagnon/img/nuit.gif" alt="" width="240" height="240" loading="lazy"><div><h3 class="px"><span class="fr">Le jour et la nuit</span><span class="en">Day and night</span></h3><p><span class="fr">Le premier fader assombrit le son comme la ville le soir. Les étoiles sortent, le chat s'endort.</span><span class="en">The first fader darkens the sound like the town at dusk. The stars come out, the cat falls asleep.</span></p></div></div>
+      <div class="feat"><img src="https://bunglesociety.github.io/modular-compagnon/img/neige.gif" alt="" width="240" height="240" loading="lazy"><div><h3 class="px"><span class="fr">L'hiver FM</span><span class="en">The FM winter</span></h3><p><span class="fr">Le deuxième fader mélange une FM froide dans le son, et la neige tombe. Sur Souffle et Crépuscule, c'est la Montée.</span><span class="en">The second fader blends a cold FM into the sound, and snow falls. On Souffle and Crépuscule, it is the Rise.</span></p></div></div>
+      <div class="feat"><img src="https://bunglesociety.github.io/modular-compagnon/img/magneto.png" alt="" width="240" height="240" loading="lazy"><div><h3 class="px"><span class="fr">Le magnéto</span><span class="en">The tape recorder</span></h3><p><span class="fr">Le clavier écoute en permanence. Une idée te plaît ? Maintiens REC : il garde ta dernière phrase. PLAY la rejoue, les flèches choisissent.</span><span class="en">The keyboard always listens. Like an idea? Hold REC: it keeps your last phrase. PLAY plays it back, the arrows choose.</span></p></div></div>
+      <div class="feat"><img src="https://bunglesociety.github.io/modular-compagnon/img/reglage.png" alt="" width="240" height="240" loading="lazy"><div><h3 class="px"><span class="fr">Une commande, un rôle</span><span class="en">One control, one job</span></h3><p><span class="fr">Le réglage touché s'écrit en haut de l'écran, en lettres pixel, avec sa valeur. Le chat tourne la tête vers lui.</span><span class="en">The control you touch is written at the top of the screen, in pixel letters, with its value. The cat turns his head to it.</span></p></div></div>
+      <div class="feat"><img src="https://bunglesociety.github.io/modular-compagnon/img/folie.gif" alt="" width="240" height="240" loading="lazy"><div><h3 class="px"><span class="fr">Sa petite vie</span><span class="en">His little life</span></h3><p><span class="fr">Toilette patte levée, griffes au bord de l'écran, roulade, chasse, mlem, la folie qui le fait sortir de l'écran… Il est plus calme si tu préfères (réglage GLOBE).</span><span class="en">Leg-up wash, claws on the edge of the screen, roll, hunt, mlem, the zoomies that run him off the screen… Calmer if you prefer (GLOBE setting).</span></p></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="px"><span class="fr">Les commandes</span><span class="en">The controls</span></h2>
+    <a class="map fr" href="https://bunglesociety.github.io/modular-compagnon/img/commandes-fr.png" target="_blank" rel="noopener"><img class="map" src="https://bunglesociety.github.io/modular-compagnon/img/commandes-fr.png" alt="Le SMK-37 Elite vu de dessus, chaque commande avec son rôle" width="1600" height="900" loading="lazy"></a>
+    <a class="map en" href="https://bunglesociety.github.io/modular-compagnon/img/controls-en.png" target="_blank" rel="noopener"><img class="map" src="https://bunglesociety.github.io/modular-compagnon/img/controls-en.png" alt="The SMK-37 Elite seen from above, every control with its job" width="1600" height="900" loading="lazy"></a>
+    <dl class="ctl">
+      <dt><span class="fr">16 pads</span><span class="en">16 pads</span></dt><dd><span class="fr">Les seize sons.</span><span class="en">The sixteen sounds.</span></dd>
+      <dt>K1 · K2 – K8</dt><dd><span class="fr">Le volume · cutoff, résonance, attaque, decay, sustain, release, detune.</span><span class="en">Volume · cutoff, resonance, attack, decay, sustain, release, detune.</span></dd>
+      <dt><span class="fr">4 faders</span><span class="en">4 faders</span></dt><dd><span class="fr">Jour / nuit, FM (l'hiver), temps de l'écho (libre, sans synchro), écho.</span><span class="en">Day / night, FM (the winter), echo time (free, no sync), echo.</span></dd>
+      <dt>Knob · Fader bank</dt><dd><span class="fr">Onde 1 · onde 2, sur les sons qui en ont (la touche s'allume).</span><span class="en">Wave 1 · wave 2, on the sounds that have them (the button lights up).</span></dd>
+      <dt>FX</dt><dd><span class="fr">Le vintage : un léger pleurage de bande, de la chaleur, des aigus adoucis.</span><span class="en">Vintage: a gentle tape wow, warmth, softened highs.</span></dd>
+      <dt>Play · Rec · &lt; &gt;</dt><dd><span class="fr">Le magnéto. &lt; et &gt; maintenus ensemble : effacer le croquis.</span><span class="en">The tape. &lt; and &gt; held together: erase the sketch.</span></dd>
+      <dt>Arp · Scale · Chord · Repeat</dt><dd><span class="fr">L'arpège, la gamme, un accord sur chaque touche, la note répétée.</span><span class="en">Arpeggio, scale, a chord on each key, note repeat.</span></dd>
+      <dt>Globe</dt><dd><span class="fr">Les réglages : canal MIDI, courbe de vélocité, accordage, lumière des pads, veille de l'écran, caractère du chat.</span><span class="en">Settings: MIDI channel, velocity curve, tuning, pad light, screen sleep, the cat's temper.</span></dd>
+      <dt><span class="fr">Molettes</span><span class="en">Wheels</span></dt><dd><span class="fr">La modulation fait onduler le filtre, plus vite en montant. Le pitch est désactivé.</span><span class="en">Modulation waves the filter, faster as it goes up. Pitch is off.</span></dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 class="px"><span class="fr">L'installer</span><span class="en">Install it</span></h2>
+    <ol class="steps"><li><span class="fr">Ouvre la page d'installation dans Chrome ou Edge, sur ton ordinateur.</span><span class="en">Open the install page in Chrome or Edge, on your computer.</span></li><li><span class="fr">Branche le SMK-37 Elite en USB, directement, sans hub.</span><span class="en">Connect the SMK-37 Elite by USB, directly, no hub.</span></li><li><span class="fr">Clique Installer et attends environ deux minutes, sans rien débrancher.</span><span class="en">Click Install and wait about two minutes, unplugging nothing.</span></li></ol>
+    <div class="after"><a class="btn" href="https://bunglesociety.github.io/modular-compagnon/install/" target="_blank" rel="noopener"><span class="fr">Installer</span><span class="en">Install</span></a><span class="note" style="margin:0"><span class="fr">La même page remet le firmware d'origine si tu veux revenir en arrière.</span><span class="en">The same page puts the original firmware back if you want to return.</span></span></div>
+  </section>
+
+  <section class="faq">
+    <h2 class="px">Questions</h2>
+    <details><summary><span class="fr">C'est gratuit ?</span><span class="en">Is it free?</span></summary><p><span class="fr">Oui. Modular Compagnon est un logiciel libre (GPL-3.0) : le code est sur GitHub, tu peux le lire, le modifier et le partager.</span><span class="en">Yes. Modular Compagnon is free software (GPL-3.0): the code is on GitHub, you can read it, change it and share it.</span></p></details>
+    <details><summary><span class="fr">Ça marche sur le SMK-37 Pro ou le MKE-P37 ?</span><span class="en">Does it work on the SMK-37 Pro or the MKE-P37?</span></summary><p><span class="fr">Non, seulement sur le SMK-37 Elite pour l'instant. L'installateur refuse les autres modèles : rien n'est écrit dessus.</span><span class="en">No, only on the SMK-37 Elite for now. The installer refuses other models: nothing is written to them.</span></p></details>
+    <details><summary><span class="fr">Je peux revenir au firmware M-VAVE ?</span><span class="en">Can I go back to the M-VAVE firmware?</span></summary><p><span class="fr">Oui, depuis la page d'installation, avec le fichier officiel SMK-37_Elite_016.fwsc du site M-VAVE (rubrique Downloads). La page vérifie que c'est bien le fichier officiel avant d'écrire.</span><span class="en">Yes, from the install page, with the official SMK-37_Elite_016.fwsc file from the M-VAVE website (Downloads). The page checks it is the official file before writing.</span></p></details>
+    <details><summary><span class="fr">Et mes presets actuels ?</span><span class="en">What about my current presets?</span></summary><p><span class="fr">Les presets et réglages du firmware d'origine sont perdus à l'installation. Pense-y si tu y tiens.</span><span class="en">The original firmware's presets and settings are lost when installing. Keep that in mind.</span></p></details>
+    <details><summary><span class="fr">Ça marche sur Mac, Windows, iPad ?</span><span class="en">Mac, Windows, iPad?</span></summary><p><span class="fr">Sur Mac, Windows et Linux, dans Chrome ou Edge. Pas dans Safari ni Firefox, et pas sur iPhone ou iPad : ils n'ont pas le MIDI web.</span><span class="en">Mac, Windows and Linux, in Chrome or Edge. Not Safari or Firefox, and not on iPhone or iPad: they have no Web MIDI.</span></p></details>
+    <details><summary><span class="fr">Pourquoi la molette de pitch ne fait rien ?</span><span class="en">Why does the pitch wheel do nothing?</span></summary><p><span class="fr">Sur l'Elite, elle ne revient pas toujours au même endroit : le son restait désaccordé. Elle est donc désactivée pour l'instant.</span><span class="en">On the Elite it does not always come back to the same place: the sound stayed out of tune. So it is off for now.</span></p></details>
+    <details><summary><span class="fr">C'est risqué ?</span><span class="en">Is it risky?</span></summary><p><span class="fr">C'est une bêta non officielle, testée sur le clavier de l'auteur. L'installation ne touche jamais au démarrage ni à la calibration du clavier, et une installation interrompue se reprend en recliquant sur Installer.</span><span class="en">It is an unofficial beta, tested on the author's keyboard. The install never touches the keyboard's boot or calibration, and an interrupted install resumes by clicking Install again.</span></p></details>
+  </section>
+
+  <p class="foot"><span class="fr">Basé sur</span><span class="en">Based on</span> <a href="https://github.com/hugelton/Felucca" target="_blank" rel="noopener">Felucca</a> by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>. <span class="fr">Merci à lui du fond du cœur.</span><span class="en">Heartfelt thanks to him.</span><br>
+    <span class="fr">Logiciel libre GPL-3.0, sans garantie. Code source :</span><span class="en">Free software, GPL-3.0, no warranty. Source:</span> <a href="https://github.com/bunglesociety/modular-compagnon" target="_blank" rel="noopener">github.com/bunglesociety/modular-compagnon</a>. <span class="fr">M-VAVE et SMK-37 sont des marques de leurs propriétaires. Modular Compagnon n'est ni fait ni soutenu par M-VAVE ou Hügelton Instruments.</span><span class="en">M-VAVE and SMK-37 are trademarks of their respective owners. Modular Compagnon is not made or supported by M-VAVE or Hügelton Instruments.</span></p>
+</div>

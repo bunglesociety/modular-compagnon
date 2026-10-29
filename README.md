@@ -1,67 +1,90 @@
-# Felucca
+# Modular Compagnon
 
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
-![Felucca 1.0](docs/felucca-1.0.png)
+![Modular Compagnon](web/compagnon/img/toilette.gif)
 
-Multi-engine synthesizer firmware for the M-VAVE FM-1, **version 1.6.1**. Connect the FM-1 to a computer by USB, open the
-[web installer](https://hugelton.github.io/Felucca/) in Chrome or Edge and press Install; no extra hardware is needed.
-Installing is at your own risk: M-VAVE's updater or the installer's **Return to official V15** takes you back.
-Want to look around first? [Try it in your browser](https://hugelton.github.io/Felucca/webapp/try/), no FM-1 needed.
+**FR** · Un firmware libre pour le **M-VAVE SMK-37 Elite**, par [Bungle Society](https://www.youtube.com/@bunglesociety).
+Seize sons de Modular Town, un magnéto qui écoute toujours, et un petit chat noir qui vit dans l'écran.
+Pas de banques, pas de sous-menus : une commande, un rôle.
 
-- Install: [web installer](https://hugelton.github.io/Felucca/), or `tools/fm1_install.py` from a terminal
-- Edit: [web editor](https://hugelton.github.io/Felucca/webapp/editor/) (developed in [Felucca-WebApp](https://github.com/hugelton/Felucca-WebApp))
-- Read: the manual is in the [wiki](https://github.com/hugelton/Felucca/wiki/Home): [Installation](https://github.com/hugelton/Felucca/wiki/Installation) ·
-  [Controls](https://github.com/hugelton/Felucca/wiki/Controls) · [Menu](https://github.com/hugelton/Felucca/wiki/Menu) ·
-  [Engines](https://github.com/hugelton/Felucca/wiki/Engines) · [Release notes](https://github.com/hugelton/Felucca/wiki/Release-Notes) ·
-  [Troubleshooting](https://github.com/hugelton/Felucca/wiki/Troubleshooting)
-- Build: [BUILDING.md](BUILDING.md); clone with the engines' submodule: `git clone --recurse-submodules https://github.com/hugelton/Felucca.git`
-- SMK-37 (beta): [SMK37.md](SMK37.md)
+**EN** · A free firmware for the **M-VAVE SMK-37 Elite**, by [Bungle Society](https://www.youtube.com/@bunglesociety).
+Sixteen Modular Town sounds, a tape recorder that always listens, and a little black cat who lives in the screen.
+No banks, no submenus: one control, one job.
 
-<a href="https://hugelton.itch.io/felucca"><img src="https://static.itch.io/images/badge-color.svg" alt="Available on itch.io" width="74"></a>
+- **Installer · Install:** [bunglesociety.github.io/modular-compagnon/install](https://bunglesociety.github.io/modular-compagnon/install/)
+  (Chrome or Edge, USB cable, nothing else)
+- **Page:** [bunglesociety.github.io/modular-compagnon](https://bunglesociety.github.io/modular-compagnon/)
+- **Firmware:** `modular-compagnon-VERSION.fwsc` in the [Releases](https://github.com/bunglesociety/modular-compagnon/releases)
+- Its big brother on the M-VAVE FM-1: [Modular One](https://bunglesociety.github.io/modular-one/)
 
-## What it is
+## Les commandes · The controls
 
-Thirteen engines with factory presets, four tracks (8 voices shared), a 64-step sequencer (chords, ties, chance, conditions,
-ratchets, nudge, locks, automation, live and step recording), SEQ TOOLS, songs, effects, a MOD matrix, MIDI (USB and TRS,
-per-track channels, MIDI LEARN) and USB audio. More: [Features](https://github.com/hugelton/Felucca/wiki/Features).
+![Les commandes](web/compagnon/img/commandes-fr.png)
 
-## New in 1.6.1
+![The controls](web/compagnon/img/controls-en.png)
 
-- **MENU > LARGE keeps one size per knob** (#251): a value no longer jumps between sizes as you turn the knob
-- **Updates check the package's size on the FM-1**: a package made for another device is refused before anything is erased
-- **Second core (beta), off by default:** MENU > SYSTEM > 2ND CORE > ON (BETA), then restart: the FM-1's second core
-  renders some of the parts, same sound, more headroom (#247)
-- **Felucca-Engines:** ANALOG, LOFI, TRIO, WHEEL and NOISE now live in [their own repository](https://github.com/hugelton/Felucca-Engines)
-  under the MIT licence (a git submodule here); Felucca itself stays GPL-3.0-only
+| | FR | EN |
+|---|---|---|
+| 16 pads | Les seize sons : Modular, Juno, Supersaw, PWM, Tape, FM, Souffle, Crépuscule · Flute, Brass, Strings, Choir, Rain, Deep, Pulse, Memory | The sixteen sounds |
+| K1 | Volume | Volume |
+| K2 – K8 | Cutoff, résonance, attaque, decay, sustain, release, detune | Cutoff, resonance, attack, decay, sustain, release, detune |
+| F1 | Jour / nuit (le jour en haut) | Day / night (day at the top) |
+| F2 | FM, l'hiver (la Montée sur Souffle et Crépuscule) | FM, the winter (the Rise on Souffle and Crépuscule) |
+| F3 · F4 | Temps de l'écho (libre) · écho | Echo time (free) · echo |
+| Knob bank · Fader bank | Onde 1 · onde 2 (la touche s'allume sur les sons qui en ont) | Wave 1 · wave 2 (the button lights up on the sounds that have them) |
+| Oct − / + | L'octave | Octave |
+| FX | Le vintage : pleurage de bande, chaleur, aigus adoucis | Vintage: tape wow, warmth, softened highs |
+| Arp · Repeat · Scale · Chord | Arpège, note répétée, gamme, accord | Arpeggio, note repeat, scale, chord |
+| Play · Rec · < > | Le magnéto : REC maintenu garde la dernière phrase jouée, PLAY la rejoue, < > choisissent, < et > maintenus effacent | The tape: REC held keeps the last phrase played, PLAY plays it back, < > choose, < and > held erase |
+| Globe | Réglages : canal MIDI, vélocité, accordage, lumière des pads, veille, le caractère du chat | Settings: MIDI channel, velocity, tuning, pad light, sleep, the cat's temper |
+| Molettes · Wheels | La modulation fait onduler le filtre ; le pitch est désactivé | Modulation waves the filter; pitch is off |
 
-## New in 1.6
+## Le chat · The cat
 
-- **Your own UI colours:** COLOR has an eleventh value, CUSTOM, set in the web editor with a live preview on the FM-1
-- **The SEQ piano roll follows the play position** when the pattern is longer than one screen
-- **Conditional steps** (1:2 … 4:4, FILL), **EUCLID, DOUBLE and HALF**, **a MIDI channel per track**, PHASE FOLD, three more drum kits and humanize in the MOD matrix (1.5.5 and 1.5.6 were never released: 1.6 carries them)
-- ⚠ A project with conditional steps does not open on 1.5 or 1.5.1; projects saved by 1.4 or later do not open on 1.1.5.x
+Il dort pendant l'ouverture (BUNGLE SOCIETY descend), puis se réveille. Il tourne la tête vers ce que tu touches, fait sa
+toilette patte levée, ses griffes, des roulades, chasse, part en folie… La nuit (F1 en bas), il s'endort, même si tu joues,
+jusqu'à ce que le jour revienne. Il vit sur l'herbe de Modular Town ; les étoiles sortent la nuit, la neige tombe l'hiver.
 
-All changes and what to know before going back: [Release notes](https://github.com/hugelton/Felucca/wiki/Release-Notes) · [Upgrading from 1.1.5](https://github.com/hugelton/Felucca/wiki/Upgrading-from-1.1.5).
+He sleeps during the opening (BUNGLE SOCIETY comes down), then wakes up. He turns his head to whatever you touch, washes
+with a leg up, claws, rolls, hunts, gets the zoomies… At night (F1 down) he falls asleep, even while you play, until day
+comes back. He lives on Modular Town grass; stars come out at night, snow falls in winter.
 
-## Support and contributing
+## Installer · Install
 
-Please report what you find in [Issues](https://github.com/hugelton/Felucca/issues) (reproducible bugs, one per issue). Ideas and
-requests go to [Discussions](https://github.com/hugelton/Felucca/discussions). Pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
-Felucca is GPLv3 and you are free to fork it; before starting yet another fork, please consider whether a PR would do.
+1. **FR** · Branche le SMK-37 Elite en USB, ouvre [l'installeur](https://bunglesociety.github.io/modular-compagnon/install/)
+   dans Chrome ou Edge, clique *Installer* et autorise le MIDI. Ne débranche pas pendant l'écriture.
+   **EN** · Plug the SMK-37 Elite in by USB, open [the installer](https://bunglesociety.github.io/modular-compagnon/install/)
+   in Chrome or Edge, click *Install* and allow MIDI. Don't unplug while it writes.
+2. **Retour d'origine · Back to stock:** the installer's last section takes M-VAVE's own *SMK-37 Elite version 016* file
+   (checked by its SHA-256) and puts it back. Keep a copy of that file.
 
-## AI disclaimer
+The installer only writes the firmware's own areas; the keyboard's boot, identity and calibration are never touched.
+Installing is at your own risk. Only the **Elite** model is supported.
 
-Felucca is developed with the assistance of AI coding agents (code, tests, documentation, translation, maintenance). The
-design, features, sound design and direction are the maintainer's or the community's, and no generative AI is used for music,
-icons or artwork. See [On AI-Assisted Development and Responsibility](https://github.com/hugelton/Felucca/discussions/166).
+## Construire · Build
 
-## Credits and licence
+Built on [Felucca](https://github.com/hugelton/Felucca) 1.6.1 by Leo Kuroshita ([Hügelton Instruments](https://hugelton.com)),
+its SMK-37 board layer. See [BUILDING.md](BUILDING.md) for the toolchain (the JieLi AC79 SDK is not in this tree), then:
 
-Free software: [GPL-3.0-only](LICENSE), the Hügelton Sample Pack included; the bundled fonts and ported DSP keep their own licences,
-and five engines ([Felucca-Engines](https://github.com/hugelton/Felucca-Engines), `firmware/engines/`) are MIT
-([LICENSES/](LICENSES/), [LICENSING.md](LICENSING.md)). Thanks to everyone whose work and contributions are in it: [CREDITS.md](CREDITS.md).
+```sh
+BOARD=smk37 MODEL=elite ./build.sh          # -> build/modular-compagnon-smk37-elite.fwsc
+tests/run_tests.sh
+python3 tools/make_compagnon_img.py         # the screen pictures (web/compagnon/img)
+python3 tools/make_controls_img.py          # the controls picture
+python3 tools/make_m1_installer.py build/modular-compagnon-smk37-elite.fwsc Modular-Compagnon.html 0.1-beta   # one-file installer
+python3 tools/make_compagnon_site.py build/modular-compagnon-smk37-elite.fwsc 0.1-beta site/                  # GitHub Pages
+```
 
-M-VAVE and FM-1 are trademarks of their respective owners. Felucca is not affiliated with or endorsed by them.
+The Modular Compagnon code: `firmware/src/m1_*.c` (controls, screen, cat, tape, sketches), `firmware/src/eng_ville.c`
+(the sounds), `tools/gen_cat.py` (the cat's sprites), `tools/gen_pixfont.py`, `web/compagnon/`.
 
-Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+## Licence · License
+
+GPL-3.0-only, like Felucca: [LICENSE](LICENSE), [LICENSING.md](LICENSING.md), [LICENSES/](LICENSES/), [CREDITS.md](CREDITS.md).
+The pixel font is [Silkscreen](https://github.com/googlefonts/silkscreen) by Jason Kottke (SIL OFL 1.1).
+Felucca's own README: [README-FELUCCA.md](README-FELUCCA.md).
+
+Not affiliated with M-VAVE. SMK-37 is their product name, used only to say which keyboard this runs on.
+
+© 2026 Alexis Arakis · Bungle Society
