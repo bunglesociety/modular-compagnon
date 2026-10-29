@@ -40,6 +40,9 @@ static uint8_t eng_mem_owner[NPART];       /* engine index + 1 whose state is in
 #if FELUCCA_SLICE
 #include "eng_slice.c"
 #endif
+#if MODULAR_ONE
+#include "eng_ville.c"          /* VILLE: Modular Town's synth (Modular One on the SMK-37) */
+#endif
 
 /* the editor protocol, user presets and projects store these indices: append, never reorder */
 static const engine_t *const ENGINES[NENGINES] = {
@@ -62,6 +65,9 @@ static const engine_t *const ENGINES[NENGINES] = {
     &ENG_FM6,                    /* 12 (ENGI_FM6) */
 #if FELUCCA_SLICE
     &ENG_SLICE,                  /* 13 (FELUCCA_SLICE=0 builds without it) */
+#endif
+#if MODULAR_ONE
+    &ENG_VILLE,                  /* 13 (ENGI_VILLE, Modular One) */
 #endif
 };
 
@@ -121,6 +127,9 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
     11,                          /* NOISE */
 #if FELUCCA_SLICE
     13,                          /* SLICE */
+#endif
+#if MODULAR_ONE
+    13,                          /* VILLE */
 #endif
     10,                          /* DRUM */
 };

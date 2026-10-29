@@ -13,8 +13,18 @@
 #define NTRK NPART               /* tracks (the formats and the protocol count these): every track is a part */
 #define NSTEP 64
 #define HALF_FRAMES 128          /* I2S half buffer: 2.9 ms at 44.1 kHz (a key waits 0..1 half, then plays 1 half later) */
+#ifndef BOARD_SMK37
+#define BOARD_SMK37 0
+#endif
+#ifndef MODULAR_ONE
+#define MODULAR_ONE BOARD_SMK37  /* Modular One on the SMK-37: the VILLE engine (eng_ville.c) as engine 13, its own
+                                  * screen and controls (m1_*.c); the FM-1 build of this tree stays Felucca */
+#endif
 #ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 1          /* the SLICE engine (eng_slice.c), engine 13; FELUCCA_SLICE=0 builds without it */
+#define FELUCCA_SLICE (!MODULAR_ONE)   /* the SLICE engine (eng_slice.c), engine 13; FELUCCA_SLICE=0 builds without it */
+#endif
+#if MODULAR_ONE && FELUCCA_SLICE
+#error "MODULAR_ONE takes engine 13 (VILLE): build it with FELUCCA_SLICE=0"
 #endif
 #ifndef FELUCCA_FM4
 #define FELUCCA_FM4 0            /* the DIGITAL engine (eng_digital.c, four-operator FM): kept in the tree, not built
@@ -28,7 +38,8 @@
                                             * second core (mod.c, voice.c SPREAD, eng_formant.c): one each with two cores,
                                             * one for all with one, as up to 1.6 */
 #define C1_PI(t) ((uint32_t)((t) - trk) % C1_NP)   /* a part's copy */
-#define NENGINES (13 + FELUCCA_SLICE)   /* SLICE (13) comes last: the other engines keep their numbers */
+#define NENGINES (13 + FELUCCA_SLICE + MODULAR_ONE)   /* SLICE or VILLE (13) comes last: the others keep their numbers */
+#define ENGI_VILLE 13u
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
 #define NENG_SHOWN (NENGINES - !FELUCCA_FM4)   /* the engines one can pick: PRESETS, the EDIT layer, the editor,
                                                 * in the display order of engines.c ENGINE_ORDER */
