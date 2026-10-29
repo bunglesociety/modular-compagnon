@@ -60,7 +60,7 @@ PRODUCT = "FM-1_900"                # package identity; release builds are FM-1_
 BOARD = "fm1"                       # fm1 (default) or smk37: BOARD env or --board
 BOARD_PREFIX = {"fm1": "FM-1_9", "smk37": "SMK-37 Pro_9"}   # identity of a release build: prefix + X + Y
 BOARD_DEFS = {"fm1": [], "smk37": ["-DBOARD_SMK37=1"]}       # the FM-1 build gets no new flag (byte-identical)
-BOARD_STEM = {"fm1": "felucca", "smk37": "felucca-smk37"}        # package name: STEM.fwsc, STEM-X.Y.fwsc
+BOARD_STEM = {"fm1": "felucca", "smk37": "modular-one-smk37"}        # package name: STEM.fwsc, STEM-X.Y.fwsc
 # smk37: the keyboard's model name (MODEL env or --model); one hardware, three names. pro adds no flag
 MODELS = {"pro": "SMK-37 Pro", "elite": "SMK-37 Elite", "mke": "MKE-P37"}
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/felucca.c)

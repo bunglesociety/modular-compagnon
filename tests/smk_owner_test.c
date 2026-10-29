@@ -93,17 +93,17 @@ int main(void)
     memcpy(nor + 0xAF000, "SMK37DATAOTHER\0", 16);
     st_owner_check();
     check("another firmware's store (another tag): cleared, tagged FELUCCA", store_erased() && st_owner_cleared &&
-          !memcmp(nor + 0xAF000, "SMK37DATAFELUCCA", 16));
+          !memcmp(nor + 0xAF000, "SMK37DATAMODONE", 16));
     check("... calibration (USRTRIM) and samples untouched", others_kept());
     fill();
-    memcpy(nor + 0xAF000, "SMK37DATAFELUCCA", 16);
+    memcpy(nor + 0xAF000, "SMK37DATAMODONE", 16);
     st_owner_cleared = 0;
     st_owner_check();
     check("our own store: kept as it is", nor[0x9D000] == 0x11 && nor[0xB0000] == 0x22 && !st_owner_cleared);
     fill();
     st_owner_check();
     check("an untagged store (FELUCCA_DATA_UNTAGGED_OK 0): cleared, tagged", store_erased() &&
-          !memcmp(nor + 0xAF000, "SMK37DATAFELUCCA", 16) && others_kept());
+          !memcmp(nor + 0xAF000, "SMK37DATAMODONE", 16) && others_kept());
     /* the stock firmware's mapping in USRFLASH: kept while intact, its marker released over anything else */
     fill();
     stock();

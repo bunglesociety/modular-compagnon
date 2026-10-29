@@ -43,6 +43,8 @@ LOADER_MARK = b"FELUCCA-LOADER-1"
 STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
 # the unmodified official SMK-37 Pro V016 (SMK-37_Pro_016.fwsc, 36 interleave blocks): the return of an SMK-37 Pro
 STOCK_SMK016_SHA256 = "2d98ce72530e71d617384963423820536f094501299e2cfec0a8d3c3fb6bcfb0"
+# the unmodified official SMK-37 Elite V016 (SMK-37_Elite_016.fwsc): the return of an SMK-37 Elite
+STOCK_ELITE016_SHA256 = "b2ee38abfef3ae922e4eecdb8a551e14345300ae6f270265feacd33b6ef99cb6"
 PORT_RE = re.compile(r"fm-1|smk|elite|mke-p37|starry|felucca|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
 
 # seconds; the tests shorten them
@@ -451,7 +453,7 @@ def load_package(path, force):
     product = product_of(raw)
     if not re.fullmatch(r"[^_]+_\d+", product):
         raise InstallError("badpkg", f"{path}: not an FM-1 package (identity {product!r})")
-    official = hashlib.sha256(raw).hexdigest() in (STOCK_V15_SHA256, STOCK_SMK016_SHA256)
+    official = hashlib.sha256(raw).hexdigest() in (STOCK_V15_SHA256, STOCK_SMK016_SHA256, STOCK_ELITE016_SHA256)
     if LOADER_MARK not in raw and not official and not force:
         raise InstallError("badpkg", f"{path}: no Felucca update loader in this package; only Felucca's own "
                                      "packages and the unmodified official V15 (FM-1.fwsc) or SMK-37 Pro V016 "
