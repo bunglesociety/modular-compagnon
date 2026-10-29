@@ -378,7 +378,7 @@ static const uint8_t CAT_DAY_LIFE[] = {CAT_PETRIR, CAT_MLEM, CAT_VIDE, CAT_QUEUE
                                        CAT_CELLO, CAT_CELLO, CAT_CELLO, CAT_TOILETTE, CAT_TOILETTE};
 static const uint8_t CAT_NIGHT_LIFE[] = {CAT_ENDORT, CAT_PETRIR, CAT_BAILLEMENT, CAT_ENDORT};
 
-static int cat_night(void) { return cat.night > 96; }
+static int cat_night(void) { return cat.night > 80; }   /* (fader 1 in its lowest third) */
 
 static void cat_think(void)
 {
@@ -411,6 +411,10 @@ static void cat_think(void)
         return;                                                              /* (his business: until the clip ends) */
     if (c != CAT_IDLE) {                                                     /* the music or the touch is over */
         cat_play(CAT_IDLE);
+        return;
+    }
+    if (cat_night() && now - cat.quiet_since > 3000u) {                      /* night: dodo, 3 s after the music */
+        cat_play(cat_rand(4) ? CAT_ENDORT : CAT_PETRIR);                     /* (PETRIR ends asleep at night) */
         return;
     }
     if (!cat.next_life)
