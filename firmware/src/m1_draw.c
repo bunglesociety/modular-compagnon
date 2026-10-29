@@ -387,8 +387,8 @@ static void cat_think(void)
     int touched = m1.touched != M1T_NONE && now - m1.t_ms < 1500u;
     if (playing || touched)
         cat.quiet_since = now;
-    if (c == CAT_SLEEP || c == CAT_ENDORT) {                                 /* asleep: playing, a touch or the day */
-        if (playing || touched || cat.night < 48) {
+    if (c == CAT_SLEEP || c == CAT_ENDORT || (c == CAT_PETRIR && cat_night())) {   /* asleep: only the day wakes him */
+        if (cat.night < 48) {
             cat_play(CAT_WAKE);
             cat.next_life = now + 10000u;
         }
@@ -396,6 +396,11 @@ static void cat_think(void)
     }
     if (c == CAT_WAKE)
         return;                                                              /* (he gets up first) */
+    if (cat_night()) {                                                       /* night: he falls asleep, music or not */
+        if (!cat.behaving || c == CAT_IDLE)
+            cat_play(cat_rand(4) ? CAT_ENDORT : CAT_PETRIR);                 /* (PETRIR ends asleep at night) */
+        return;
+    }
     if (playing) {
         if (c != CAT_PLAY)
             cat_play(CAT_PLAY);                                              /* the music stops his business too */
@@ -411,10 +416,6 @@ static void cat_think(void)
         return;                                                              /* (his business: until the clip ends) */
     if (c != CAT_IDLE) {                                                     /* the music or the touch is over */
         cat_play(CAT_IDLE);
-        return;
-    }
-    if (cat_night() && now - cat.quiet_since > 3000u) {                      /* night: dodo, 3 s after the music */
-        cat_play(cat_rand(4) ? CAT_ENDORT : CAT_PETRIR);                     /* (PETRIR ends asleep at night) */
         return;
     }
     if (!cat.next_life)

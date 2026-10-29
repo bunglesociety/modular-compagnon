@@ -5,7 +5,7 @@
  *   cc -O1 -w -DMODULAR_ONE=1 -DFELUCCA_SLICE=0 -Ibuild/gen -Ifirmware/src -Itests -o build/host/m1_screen tests/m1_screen.c -lm
  *   build/host/m1_screen OUTDIR
  * Checks: every clip plays to its end without leaving the grid, the band shows each control touched, the cat
- * falls asleep at night and wakes when a key is played. Exit 1 on a failure. */
+ * falls asleep at night, sleeps through the music and wakes with the day. Exit 1 on a failure. */
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -209,11 +209,12 @@ int main(int argc, char **argv)
     if (cat.clip != CAT_SLEEP) { printf("m1_screen: FAIL not asleep at night (clip %u)\n", cat.clip); fails++; }
     for (k = 0; k < 30u; k++) { fm1_in.fader[1] = (uint8_t)(k * 110 / 29); run(60); }     /* winter */
     run(4000);
-    key(7, 1500);                                                           /* a key: he wakes */
-    if (cat.clip == CAT_SLEEP) { printf("m1_screen: FAIL still asleep after a key\n"); fails++; }
+    key(7, 1500);                                                           /* the music: he sleeps on */
+    if (cat.clip != CAT_SLEEP) { printf("m1_screen: FAIL woke up at night (clip %u)\n", cat.clip); fails++; }
     run(2500);
     for (k = 0; k < 30u; k++) { fm1_in.fader[0] = (uint8_t)(k * 127 / 29); fm1_in.fader[1] = (uint8_t)(110 - k * 110 / 29); run(60); }
-    run(2000);
+    run(2000);                                                              /* the day: he wakes */
+    if (cat.clip == CAT_SLEEP || cat.clip == CAT_ENDORT) { printf("m1_screen: FAIL still asleep in the day\n"); fails++; }
     /* the tape: a phrase, 4 s of silence, REC held: a sketch; PLAY plays it, the cat listens; < and > erase it */
     {
         static const uint8_t PH[6] = {0, 4, 7, 12, 7, 4};
