@@ -140,10 +140,10 @@ static struct {
     uint8_t show;
 } cap;
 
-/* the opening (8 s, a note or a touch skips it): BUNGLE SOCIETY comes down from the top to the middle, as on the
+/* the opening (5 s, a note or a touch skips it): BUNGLE SOCIETY comes down from the top to the middle, as on the
  * FM-1's Modular One; the cat asleep on the grass below, his zzz; then he wakes up */
-#define SPL_MS 8000u
-#define SPL_STOP 1700                            /* (the descent; then it stays 6.3 s in the middle) */
+#define SPL_MS 5000u
+#define SPL_STOP 2000                            /* (the descent, 2 s; then it stays 3 s in the middle) */
 #define SPL_Y 104                                /* (just clear of his zzz) */
 static struct { uint8_t on, started; uint32_t t0; int16_t y; } spl = {1, 0, 0, -20};
 static int32_t spl_y(int32_t t) { return t >= SPL_STOP ? SPL_Y : -14 + (SPL_Y + 14) * t / SPL_STOP; }
