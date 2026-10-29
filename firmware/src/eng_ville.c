@@ -185,6 +185,60 @@ static void vl_town(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod
     v->s[2] = idx; v->s[3] = idx2; v->s[4] = g;
 }
 
+/* FLUTE: the kiosk's Mellotron (the patch's ModularTownMellotron), as the patch plays it: no synth filter. A full
+ * flute (the fundamental and four harmonics), its breath tuned near the note and the mouth noise, the chiff at the
+ * attack, a deep player's vibrato with its tremolo, each key its own tape (tuning, level, brightness), then the tape
+ * chain: low cut, a presence in the mids, soft saturation, dull highs, hiss. CUT darkens the tape, RES is the breath.
+ * Per voice: s[0..1] the low cuts, s[2..3] the presence band-pass, s[4..5] the tape low-passes; f[0..1] the breath's
+ * band-pass, f[2] the chiff. */
+static void vl_flute(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m, uint32_t inc1)
+{
+    const int16_t *p = t->p;
+    vl_part_t *pp = vl_part(t);
+    vl_voice_t *x = &pp->v[(uint32_t)(v - t->v) % NVOICE];
+    uint32_t note = v->note, i, ph = v->ph[0];
+    int32_t det = ((int32_t)((note * 37u) % 13u) - 6) * 419;                  /* +-4 cents, Q20 */
+    int32_t amp = 26870 + (int32_t)((note * 53u) % 9u) * 1475;               /* 0.82 .. 1.18 of the level, Q15 */
+    int32_t br = 26214 + (int32_t)((note * 29u) % 7u) * 2294;                /* brightness 0.8 .. 1.22 */
+    int32_t brk = clamp(p[P_E4] * 516, 0, 65535);                            /* RES: the breath, 64 = the patch's */
+    int32_t lp2 = 2000 + p[P_E3] * 140;                                       /* CUT: the tape's top, ~470 Hz .. 6.5 kHz */
+    int32_t chiff = x->f[2];
+    int32_t fg = clamp((int32_t)(inc1 >> 13), 3267, 12950);                  /* the breath's band: ~2.2 x f */
+    int32_t h1 = v->s[0], h2 = v->s[1], q1 = v->s[2], q2 = v->s[3], t1 = v->s[4], t2 = v->s[5];
+    int32_t nz = pp->nz ? (int32_t)pp->nz : 0x2545F491;
+    inc1 = (uint32_t)((int64_t)inc1 + (((int64_t)inc1 * det) >> 20));
+    for (i = 0; i < n; i++) {
+        int32_t s1 = sine_i(ph);
+        int32_t harm = (sine_i(ph * 2u) * 8847 + sine_i(ph * 3u) * 3277 + sine_i(ph * 4u) * 1147 + sine_i(ph * 5u) * 393) >> 15;
+        int32_t tone = s1 + ((harm * br) >> 15);
+        int32_t no = (int32_t)(noise32(&nz) >> 17) - 16384;
+        int32_t hp = no - x->f[1] - ((x->f[0] * 36045) >> 15);
+        x->f[0] += (fg * hp) >> 15;
+        x->f[1] += (fg * x->f[0]) >> 15;
+        int32_t breath = ((x->f[0] * (2294 + ((11796 * chiff) >> 15))) >> 15) + (((no * (16384 + (s1 >> 1))) >> 15) * 1638 >> 15);
+        int32_t y = ((tone * (32767 - ((9830 * chiff) >> 15))) >> 15) + ((breath * brk) >> 15);
+        y = (((y * amp) >> 15) * 5) >> 3;                                    /* the level of the other sounds */
+        /* the tape: two low cuts at 110 Hz, the presence at 1.3 kHz, saturation, 4.3 kHz then CUT, hiss */
+        h1 += ((y - h1) * 512) >> 15; y -= h1;
+        h2 += ((y - h2) * 512) >> 15; y -= h2;
+        {
+            int32_t bp = y - q2 - ((q1 * 39322) >> 15);
+            q1 += (3031 * bp) >> 15;
+            q2 += (3031 * q1) >> 15;
+            y += (q1 * 7209) >> 15;
+        }
+        t1 += (((softclip((y * 7) >> 2) * 20316) >> 15) - t1) * 15000 >> 15;
+        t2 += ((t1 - t2) * lp2) >> 15;
+        y = t2 + (((int32_t)(noise32(&nz) >> 23) - 256) / 4);
+        ph += inc1;
+        out[i] += voice_amp(y, m, i) << 1;
+    }
+    x->f[2] = (chiff * 32178) >> 15;                                         /* the chiff: exp(-t / 40 ms) */
+    pp->nz = (uint32_t)nz;
+    v->ph[0] = ph;
+    v->s[0] = h1; v->s[1] = h2; v->s[2] = q1; v->s[3] = q2; v->s[4] = t1; v->s[5] = t2;
+}
+
 static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     if (VM_TOWN((uint32_t)t->p[P_E0])) {
@@ -228,6 +282,12 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
     }
     if (vib)
         inc1 = (uint32_t)((int64_t)inc1 + (((int64_t)inc1 * vib) >> 20));
+    if (mode == VM_FLUTE) {
+        vl_flute(t, v, out, n, m, inc1);
+        if (age < 0x7FFF0000)
+            v->s[6] = age + 1;
+        return;
+    }
     if (mode == VM_JUNO) {
         inc2 = inc1 >> 1;                                /* OSC 2: the sub-octave */
     } else {
@@ -245,8 +305,6 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
         int32_t d = ((sw * 37683) >> 15) - 32767;                               /* swell x 1.15 - 1 */
         cut += (((d * VL_NSWA[mode - VM_BRASS]) >> 8) * VL_CUT_OCT) >> 15;
     }
-    if (mode == VM_FLUTE)
-        cut = (127 << 8) + m->cutoff + (p[P_E3] - 127) * 128;   /* the flute stays open; CUT only darkens it */
     tsvf_coef(&f1c, cut, 0);
     tsvf_coef(&f2c, cut, res);
 
@@ -282,9 +340,7 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
     uint32_t pwa = (uint32_t)(16384 + ((sine_i(pp->pwm + vi * 0x1C000000u) * 11796) >> 15)) << 17;            /* 0.5 +- 0.36 */
     uint32_t pwb = (uint32_t)(16384 + ((sine_i(pp->pwm + (pp->pwm >> 1) + 0x40000000u + vi * 0x36000000u) * 13107) >> 15)) << 17;
     int32_t nz = pp->nz ? (int32_t)pp->nz : 0x2545F491;
-    int32_t chiff = x->f[2];
-    int32_t fg = clamp((int32_t)(inc1 >> 13), 3267, 12950);   /* FLUTE: the breath's band, ~2.2 x f, 700 .. 2800 Hz */
-    int32_t tpk = mode == VM_MEMORY ? 11400 : mode == VM_FLUTE ? 15000 : 17138;   /* 3.0 / 4.3 / 5.2 kHz */
+    int32_t tpk = mode == VM_MEMORY ? 11400 : 17138;   /* 3.0 / 5.2 kHz */
     for (i = 0; i < n; i++) {
         int32_t s;
         switch (mode) {
@@ -306,19 +362,6 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
         case VM_PWM:
             s = (((osc_pulse(ph0, inc1, pwa) + osc_pulse(ph1, inc2, pwb)) * 2) * 13763) >> 15;
             break;
-        case VM_FLUTE: {
-            int32_t s1 = sine_i(ph0);
-            int32_t tone = s1 + ((sine_i(ph0 * 2u) * 8847 + sine_i(ph0 * 3u) * 3277 + sine_i(ph0 * 4u) * 1147
-                                  + sine_i(ph0 * 5u) * 393) >> 15);
-            int32_t no = (int32_t)(noise32(&nz) >> 17) - 16384;
-            int32_t hp = no - x->f[1] - ((x->f[0] * 36045) >> 15);       /* the breath's band-pass */
-            x->f[0] += (fg * hp) >> 15;
-            x->f[1] += (fg * x->f[0]) >> 15;
-            int32_t breath = ((x->f[0] * (2294 + ((11796 * chiff) >> 15))) >> 15)
-                             + (((no * (16384 + (s1 >> 1))) >> 15) * 1638 >> 15);
-            s = (((tone * (32767 - ((9830 * chiff) >> 15))) >> 15) + breath) * 3 >> 2;
-            break;
-        }
         case VM_BRASS: case VM_STRINGS: case VM_MEMORY:   /* three saws and a little square */
             s = (((osc_saw(ph0, inc1) + ((osc_saw(x->ph[0], ia) * 27852) >> 15) + ((osc_saw(x->ph[1], ib) * 27852) >> 15))
                   * 11141) >> 15) + ((osc_pulse(ph1, inc2, 0x80000000u) * 2 * 3932) >> 15);
@@ -368,7 +411,7 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
             pm1 += fi1;
             x->ph[4] += fi2;
         }
-        if (mode == VM_TAPE || mode == VM_MEMORY || mode == VM_FLUTE) {   /* a tired tape: saturation, dull highs */
+        if (mode == VM_TAPE || mode == VM_MEMORY) {   /* a tired tape: saturation, dull highs */
             int32_t sat = (softclip((s * 7) >> 2) * 20316) >> 15;          /* tanh(1.7 x) x 0.62 */
             x->tp += ((sat - x->tp) * tpk) >> 15;
             s = x->tp + (((int32_t)(noise32(&nz) >> 22) - 512) / 6);
@@ -377,8 +420,6 @@ static void vl_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vm
         ph1 += inc2;
         out[i] += voice_amp(s, m, i) << 1;
     }
-    if (mode == VM_FLUTE)
-        x->f[2] = (chiff * 32178) >> 15;                 /* the chiff: exp(-t / 40 ms), per block */
     pp->nz = (uint32_t)nz;
     v->ph[0] = ph0;
     v->ph[1] = ph1;
@@ -399,7 +440,7 @@ static const preset_t VILLE_PRESETS[] = {
     {"PWM STR",  {VM_PWM,       0,  0,  68, 10, 64,  0,  0}, {45, 60, 85, 70}, 0, 0, FX(0, 70, 15, 0), 0},
     {"TAPE",     {VM_TAPE,     20, 60,  66, 12, 64,  0,  0}, {8, 55, 60, 55}, 0, 0, FX(0, 0, 25, 0), 0},
     {"FM",       {VM_FM,       20, 45,  70, 20, 64,  0, 127}, {2, 60, 40, 60}, 0, 0, FX(0, 0, 20, 0), 0},
-    {"FLUTE",    {VM_FLUTE,     0,  0, 127,  0, 64,  0,  0}, {20, 30, 127, 40}, 0, 0, FX(0, 0, 10, 0), 0},
+    {"FLUTE",    {VM_FLUTE,     0,  0, 127, 64, 64,  0,  0}, {56, 30, 127, 86}, 0, 0, FX(0, 0, 0, 0), 0},
     {"BRASS",    {VM_BRASS,     0,  0,  62, 12, 64,  0,  0}, {14, 60, 90, 50}, 0, 0, FX(0, 55, 15, 0), 0},
     {"STRINGS",  {VM_STRINGS,   0,  0,  70,  8, 64,  0,  0}, {45, 60, 100, 70}, 0, 0, FX(0, 60, 15, 0), 0},
     {"CHOIR",    {VM_CHOIR,     0,  0,  76,  6, 64,  0,  0}, {40, 60, 100, 70}, 0, 0, FX(0, 55, 15, 0), 0},
