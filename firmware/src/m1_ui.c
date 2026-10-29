@@ -11,6 +11,9 @@
  *   pitch wheel  bend (seq.c, as Felucca); mod wheel: the cutoff waves, faster as it goes up (the track LFO)
  *   OCTAVE- / +  octaves; ARP the arpeggio; SCALE the scale (snap); CHORD a chord on each key; NOTE REPEAT a
  *                1/16 repeat while held; FX the vintage (fx.c); GLOBE the settings: one knob, one setting (below)
+ *   the tape     PLAY plays the sketches kept (and stops); REC held 0.6 s keeps the last phrase played (again at once:
+ *                one phrase further back); < > the previous / next sketch (stopped: where PLAY starts); < and > held
+ *                together 1.5 s erases the sketch shown (m1_tape.c, m1_book.c)
  *   37 keys      their notes (seq.c: the 27 middle keys, the 10 outer ones) on part 1
  * The screen: m1_draw.c. Only part 1 plays; the other three are silent. */
 
@@ -27,7 +30,8 @@ static const uint8_t M1_K_PARAM[M1_NK] = {P_E3, P_E4, P_ATK, P_DEC, P_SUS, P_REL
 static const char *const M1_K_NAME[M1_NK] = {"CUTOFF", "RESO", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DETUNE"};
 
 /* what the screen shows: the last control touched (m1_draw.c) */
-enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL };
+enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL, M1T_TAPE };
+enum { M1_B_LEFT = 2, M1_B_RIGHT = 3, M1_B_PLAY = 16, M1_B_REC = 17 };
 static struct {
     uint8_t pad;             /* the sound's pad (hardware number) */
     uint8_t touched, what;   /* M1T_*, which control */
@@ -40,6 +44,9 @@ static struct {
     uint8_t dirty;
     uint32_t active_ms;      /* the last hand on anything (the screen sleeps after MENU's time) */
     uint8_t grow;            /* GLOBE: the setting turned last (0xFF none) */
+    char msg[24];            /* the tape's words (m1_say), shown in the band 2.5 s */
+    uint32_t msg_ms, rec_ms, del_ms;   /* REC pressed; < and > both held since */
+    uint8_t rec_done, del_done;
     uint32_t grow_ms;
 } m1 = {.fader = {0xFF, 0xFF, 0xFF, 0xFF}, .grow = 0xFF};
 
@@ -125,6 +132,15 @@ static void m1_touch(uint32_t kind, uint32_t what, int32_t v)
     m1.what = (uint8_t)what;
     m1.value = (int16_t)v;
     m1.t_ms = m1.active_ms = fm1_ms;
+    m1.dirty = 1;
+}
+
+static void m1_say(const char *s)
+{
+    str_cpy(m1.msg, s, sizeof m1.msg);
+    m1.msg_ms = m1.active_ms = fm1_ms;
+    m1.touched = M1T_TAPE;
+    m1.t_ms = fm1_ms;
     m1.dirty = 1;
 }
 
@@ -254,7 +270,30 @@ static void m1_btn(uint32_t id, int down)
         m1_vintage = m1.vintage;
         m1_touch(M1T_BTN, id, m1.vintage);
         break;
-    default:                                                                 /* (the tape player: m1_tape.c) */
+    case M1_B_PLAY:                                                          /* the tape: play / stop */
+        if (!pl_count && !demo_on) {
+            m1_say("CARNET VIDE");
+            break;
+        }
+        demo_req = demo_on ? 2u : 1u;
+        m1_touch(M1T_TAPE, id, 0);
+        break;
+    case M1_B_REC:                                                           /* (held: m1_tape_held) */
+        m1.rec_ms = fm1_ms;
+        m1.rec_done = 0;
+        break;
+    case M1_B_LEFT: case M1_B_RIGHT:
+        if (!pl_count)
+            break;
+        if (demo_on) {
+            demo_req = id == M1_B_RIGHT ? 3u : 5u;                            /* next / previous */
+        } else {
+            pl_start = (uint8_t)((pl_start + (id == M1_B_RIGHT ? 1u : pl_count - 1u)) % pl_count);
+            pl_cursor = pl_start;
+        }
+        m1_touch(M1T_TAPE, id, 0);
+        break;
+    default:
         break;
     }
 }
@@ -298,6 +337,26 @@ static void m1_input(void)
         if ((released >> k) & 1u)
             m1_btn(k, 0);
     }
+    {   /* the tape's held gestures */
+        uint32_t b = fm1_in.buttons;
+        if ((b >> M1_B_REC) & 1u) {
+            if (!m1.rec_done && fm1_ms - m1.rec_ms >= 600u) {               /* REC held: keep the last phrase */
+                m1.rec_done = 1;
+                m1_keep_req = 1;
+                m1_say("ON GARDE...");
+            }
+        }
+        if (((b >> M1_B_LEFT) & 1u) && ((b >> M1_B_RIGHT) & 1u) && pl_count && !demo_on) {
+            if (!m1.del_ms)
+                m1.del_ms = fm1_ms ? fm1_ms : 1u, m1.del_done = 0;
+            if (!m1.del_done && fm1_ms - m1.del_ms >= 1500u) {              /* < and > held: erase the sketch shown */
+                m1.del_done = 1;
+                m1_del_req = (uint8_t)(pl_start % pl_count + 1u);
+            }
+        } else {
+            m1.del_ms = 0;
+        }
+    }
     if (fm1_in.frames > 200u)
         m1_faders_apply(m1.fader[0] == 0xFF);
     m1_modwheel();
@@ -334,4 +393,6 @@ static void m1_leds(void)
     fm1_led_key(9, t->p[P_CHRD] != 0);
     fm1_led_key(10, m1.globe);
     fm1_led_key(14, m1.vintage);
+    fm1_led_key(M1_B_PLAY, demo_on);
+    fm1_led_key(M1_B_REC, ((fm1_in.buttons >> M1_B_REC) & 1u) || fm1_ms - m1.msg_ms < 400u);
 }

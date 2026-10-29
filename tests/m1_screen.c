@@ -39,7 +39,7 @@ enum { FM1_BTN_OCT_DOWN = 4, FM1_BTN_OCT_UP = 5 };
 enum { SMK_BTN_KNOB_BANK = 0, SMK_BTN_FADER_BANK = 1 };
 #define fm1_in m1h_in                            /* (hostsim.c has its own) */
 static struct { uint8_t fader[4]; uint8_t key_vel[40]; uint32_t frames, buttons; } fm1_in = {{127, 0, 40, 30}, {0}, 1000, 0};
-static uint32_t host_pressed, host_released, host_notes;
+static uint32_t host_pressed, host_released, host_notes, host_btn;
 static int32_t host_enc[8], host_pad = -1;
 static uint32_t fm1_input_edges(uint32_t *rel) { uint32_t p = host_pressed; *rel = host_released; host_pressed = host_released = 0; return p; }
 static uint32_t fm1_input_note_edges(void) { uint32_t n = host_notes; host_notes = 0; return n; }
@@ -80,6 +80,35 @@ static struct { uint8_t factory[16][32]; uint32_t user, filter; } favorites;
 #endif
 
 #include "../firmware/src/m1_ui.c"
+
+/* the sketchbook (m1_book.c) on a fake flash: AND-writes, 4 KiB erases */
+static uint8_t host_fl[SMP_USER_SIZE];
+static int flash_ok = 1;
+static uint32_t host_erases;
+#define fm1_xip_ptr(off) ((const uint8_t *)host_fl + ((off) - SMP_USER_BASE))
+static void fl_inval(uint32_t off, uint32_t n) { (void)off; (void)n; }
+static void audio_silence(void) {}
+static void fm1_wdt_feed(void) { if (demo_on) demo_block(CTL); }        /* (the audio goes on while it waits) */
+static int fl_erase4k(uint32_t off, uint32_t *took) { *took = 0; host_erases++; memset(host_fl + (off - SMP_USER_BASE), 0xFF, 0x1000); return 0; }
+static int fl_write(uint32_t off, const uint8_t *p, uint32_t n)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        host_fl[off - SMP_USER_BASE + i] &= p[i];
+    return 0;
+}
+static uint32_t st_crc32(const void *p, uint32_t n)
+{
+    const uint8_t *b = p;
+    uint32_t c = 0xFFFFFFFFu, k;
+    while (n--) {
+        c ^= *b++;
+        for (k = 0; k < 8u; k++)
+            c = c >> 1 ^ (0xEDB88320u & -(c & 1u));
+    }
+    return ~c;
+}
+#include "../firmware/src/m1_book.c"
 #include "../firmware/src/m1_draw.c"
 
 /* ------------------------------------------------------------ the film */
@@ -107,8 +136,15 @@ static void run(uint32_t ms)
 {
     uint32_t end = fm1_ms + ms;
     while ((int32_t)(fm1_ms - end) < 0) {
+        fm1_in.buttons = host_btn;
         m1_input();
+        m1_service();
         m1_draw();
+        {   /* the audio's events, block by block (the tape's player, the sketch clock) */
+            uint32_t b;
+            for (b = 0; b < 15u * 44100u / 1000u / CTL; b++)
+                events_block(CTL);
+        }
         if (cat.box[2] && (cat.box[0] + cat.box[2] > CAT_G || cat.box[1] + cat.box[3] > CAT_SCENE)) {
             printf("m1_screen: FAIL frame box off the grid (clip %u)\n", cat.clip);
             fails++;
@@ -150,7 +186,9 @@ int main(int argc, char **argv)
     dir = argc > 1 ? argv[1] : "build/m1_screen";
     host_tracks_init();
     fm1_ms = 1000;
+    memset(host_fl, 0xFF, sizeof host_fl);
     m1_init();
+    m1_boot();
     run(3000);                                                              /* IDLE */
     host_enc[1] = -3; run(200); host_enc[1] = -5; run(200); host_enc[1] = -4; run(1400);   /* CUTOFF down */
     if (cat.clip != CAT_LOOK_R) { printf("m1_screen: FAIL no look at the knob (clip %u)\n", cat.clip); fails++; }
@@ -175,6 +213,29 @@ int main(int argc, char **argv)
     run(2500);
     for (k = 0; k < 30u; k++) { fm1_in.fader[0] = (uint8_t)(k * 127 / 29); fm1_in.fader[1] = (uint8_t)(110 - k * 110 / 29); run(60); }
     run(2000);
+    /* the tape: a phrase, 4 s of silence, REC held: a sketch; PLAY plays it, the cat listens; < and > erase it */
+    {
+        static const uint8_t PH[6] = {0, 4, 7, 12, 7, 4};
+        uint32_t j;
+        run(4500);
+        for (j = 0; j < 6u; j++) {
+            input_on(M1T, 60u + PH[j], 90);
+            run(250);
+            input_off(M1T, 60u + PH[j]);
+            run(50);
+        }
+        run(4500);
+        host_btn = 1u << M1_B_REC; host_pressed = host_btn; run(900); host_released = host_btn; host_btn = 0; run(1500);
+        if (pl_count != 1u || pl_item[0].n != 6u) { printf("m1_screen: FAIL REC held kept %u sketches (%u notes)\n", pl_count, pl_count ? pl_item[0].n : 0); fails++; }
+        host_pressed = 1u << M1_B_PLAY; run(600);
+        if (!demo_on || cat.clip != CAT_PLAY) { printf("m1_screen: FAIL PLAY: playing %u, cat clip %u\n", demo_on, cat.clip); fails++; }
+        run(2500);
+        host_pressed = 1u << M1_B_PLAY; run(600);
+        if (demo_on) { printf("m1_screen: FAIL PLAY again did not stop\n"); fails++; }
+        run(1500);
+        host_btn = 1u << M1_B_LEFT | 1u << M1_B_RIGHT; run(1800); host_btn = 0; run(1500);
+        if (pl_count) { printf("m1_screen: FAIL < > held did not erase the sketch\n"); fails++; }
+    }
     /* GLOBE: K2 .. K7, one setting each, saved; the cat back after */
     cut = M1T->p[P_E3];
     host_pressed = 1u << 10; run(800);

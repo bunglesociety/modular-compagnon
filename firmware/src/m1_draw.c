@@ -15,7 +15,7 @@
 #define CAT_SKY_ROWS 56u                         /* the wall above, the floor below */
 #define BAND_Y 204u
 
-static uint8_t cat_buf[CAT_G * CAT_SCENE];
+static uint8_t cat_buf[CAT_G * CAT_SCENE] __attribute__((section(".pool")));
 static struct {
     uint8_t clip, step, behaving;
     uint32_t t_next, quiet_since, next_life;
@@ -150,7 +150,7 @@ static int cat_night(void) { return cat.night > 96; }
 static void cat_think(void)
 {
     uint32_t now = fm1_ms, c = cat.clip;
-    int playing = m1.notes_ms && now - m1.notes_ms < 1200u;
+    int playing = (m1.notes_ms && now - m1.notes_ms < 1200u) || demo_on;   /* (the tape too: he listens) */
     int touched = m1.touched != M1T_NONE && now - m1.t_ms < 1500u;
     if (playing || touched)
         cat.quiet_since = now;
@@ -243,17 +243,37 @@ static void cat_tick(void)
 /* ------------------------------------------------------------ the band */
 static const char *const M1_F_NAME[4] = {"JOUR / NUIT", "FM", "TEMPS", "ECHO"};
 static const char *const M1_B_NAME[18] = {"ONDE 1", "ONDE 2", "", "", "OCTAVE", "OCTAVE", "ARP", "REPEAT", "GAMME",
-                                          "ACCORD", "REGLAGES", "", "", "", "VINTAGE", "", "", ""};
+                                          "ACCORD", "REGLAGES", "", "", "", "VINTAGE", "", "", ""};   /* (the tape's: M1T_TAPE) */
+
+static uint32_t m1_hash(uint32_t h, const char *t)
+{
+    while (*t)
+        h = (h ^ (uint8_t)*t++) * 16777619u;
+    return h * 16777619u;
+}
+
+/* the piece the tape shows: playing, else where PLAY starts */
+static const char *m1_piece(void)
+{
+    uint32_t k = demo_on ? pl_idx : pl_start;
+    return pl_count ? pl_item[k % pl_count].name : "";
+}
 
 static void m1_band(void)
 {
-    char lab[24], val[12];
+    char lab[24], val[20], head[24];
     const uint8_t *rgb = M1_PAD_RGB[m1.pad];
     uint16_t acc = M1_RGB(rgb[0], rgb[1], rgb[2]), bg = M1_RGB(24, 20, 26), ink = M1_RGB(244, 236, 220);
     const char *snd = N_VILLE_MODE[M1T->p[P_E0] % VM_N];
     uint32_t sig, show = m1.touched != M1T_NONE && m1.touched != M1T_PAD && fm1_ms - m1.t_ms < 2500u;
     int32_t bar = -1;
     lab[0] = val[0] = 0;
+    head[0] = 0;
+    if (demo_on) {                                                           /* the tape plays: its piece first */
+        head[0] = '>';
+        head[1] = ' ';
+        str_cpy(head + 2, m1_piece(), sizeof head - 2u);
+    }
     if (show) {
         switch (m1.touched) {
         case M1T_KNOB: str_cpy(lab, M1_K_NAME[m1.what % M1_NK], sizeof lab); bar = m1.value; break;
@@ -266,6 +286,15 @@ static void m1_band(void)
             str_cpy(lab, m1.what == 1u ? "ONDE 1" : "ONDE 2", sizeof lab);
             str_cpy(val, m1.value < 22 ? "SCIE" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "CARRE", sizeof val);
             break;
+        case M1T_TAPE:
+            if (fm1_ms - m1.msg_ms < 2500u && m1.msg[0]) {                   /* kept, erased, full, ... */
+                str_cpy(lab, "CARNET", sizeof lab);
+                str_cpy(val, m1.msg, sizeof val);
+            } else if (pl_count) {
+                str_cpy(lab, demo_on ? "LECTURE" : "MAGNETO", sizeof lab);
+                str_cpy(val, m1_piece(), sizeof val);
+            }
+            break;
         default:
             str_cpy(lab, m1.what < 18u ? M1_B_NAME[m1.what] : "", sizeof lab);
             if (m1.what == FM1_BTN_OCT_DOWN || m1.what == FM1_BTN_OCT_UP) {
@@ -277,14 +306,19 @@ static void m1_band(void)
             break;
         }
     }
-    sig = ((uint32_t)m1.pad << 26) ^ ((uint32_t)(show ? m1.touched : 0) << 22) ^ ((uint32_t)m1.what << 14) ^
-          ((uint32_t)M1T->p[P_E0] << 8) ^ (uint32_t)(m1.value & 0xFF) ^ (show && !lab[0] ? 0x80000000u : 0u);
+    sig = m1_hash(m1_hash(m1_hash(m1_hash(2166136261u, lab), val), head), snd) ^ (uint32_t)(bar + 1) ^
+          ((uint32_t)m1.pad << 24);
     if (sig == cat.band_sig)
         return;
     cat.band_sig = sig;
     cv_begin(240u, 36u, bg);
     if (!show || !lab[0]) {
-        cv_text(10, 9, &AF_M, snd, acc);
+        if (head[0]) {
+            cv_text(10, 9, &AF_M, head, ink);
+            cv_text_r(230, 10, &AF_S, snd, acc, bg);
+        } else {
+            cv_text(10, 9, &AF_M, snd, acc);
+        }
     } else {
         cv_text(10, 4, &AF_M, lab, ink);
         cv_text_r(230, 4, &AF_M, val[0] ? val : snd, val[0] ? ink : acc, bg);

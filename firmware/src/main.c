@@ -307,6 +307,7 @@ static void fm1_main(void)
     scrn.idle = fm1_ms;                        /* (MENU > SCREEN OFF: from here) */
 #if MODULAR_ONE
     m1_init();
+    m1_boot();                                 /* the sketches kept, for the tape */
 #endif
 
     for (;;) {
@@ -396,6 +397,7 @@ static void fm1_main(void)
         felucca_dbg.stage = 1;
 #if MODULAR_ONE
         m1_input();                                   /* Modular One: its own controls and screen (m1_ui.c, m1_draw.c) */
+        m1_service();                                 /* REC held: a sketch to keep (m1_book.c) */
         settings_poll();
         felucca_dbg.stage = 2;
         smk_wheels();

@@ -619,9 +619,16 @@ static __attribute__((noinline)) void cin_keep(track_t *t, uint32_t note, uint32
     cin_up[i] &= (uint8_t)~(1u << k);
 }
 
+#if MODULAR_ONE
+static void sk_put(uint32_t note, uint32_t vel);    /* the sketchbook (m1_tape.c) */
+#define M1_SK_PUT(n, v) sk_put(n, v)
+#else
+#define M1_SK_PUT(n, v) ((void)0)
+#endif
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
     last_note = (uint8_t)note;
+    M1_SK_PUT(note, vel ? vel : 1u);                /* (Modular One: the sketchbook hears everything) */
     if (cin_left)
         cin_keep(t, note, vel);
     if (rec_on(t) && !t->p[P_AMODE])               /* (ARP on: arp_tick records its notes) */
@@ -638,6 +645,7 @@ static void input_off(track_t *t, uint32_t note)
 {
     if (midi_note_held(t, note))
         return;
+    M1_SK_PUT(note, 0);
     if (cin_left) {                                 /* a kept note let go before step 1: recorded, then let go */
         uint32_t i = trk_index(t), k;
         for (k = 0; k < cin_n[i]; k++)
@@ -1384,9 +1392,15 @@ static void smk_wheels_block(void)
 }
 #endif
 
+#if MODULAR_ONE
+#include "m1_tape.c"
+#endif
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, seq_n = n;
+#if MODULAR_ONE
+    sk_clock += n;
+#endif
     uint32_t clock_mode = (uint32_t)song.g[G_CLOCK];
     if (midi_clock.mode != clock_mode) {
         seq_stop();
@@ -1463,6 +1477,9 @@ static void events_block(uint32_t n)
     smk_wheels_block();
 #endif
     keyboard_block();
+#if MODULAR_ONE
+    demo_block(n);                                    /* the tape's player */
+#endif
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
         uint32_t at = mi_r % MQ, pkt = midi_in_q[at], status = (pkt >> 8) & 0xFFu;
         uint32_t st = status & 0xF0u, ch = status & 0x0Fu;
