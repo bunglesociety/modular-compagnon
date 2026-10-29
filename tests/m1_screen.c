@@ -55,13 +55,36 @@ static void apply_preset_to(track_t *t, uint32_t pi) { host_preset(t, ENGI_VILLE
 static volatile uint8_t smk_modw;
 static void fm1_irq_off(void) {}
 static void fm1_irq_on(void) {}
+static volatile uint8_t smk_vel_curve;
+/* MENU's rows GLOBE uses (menu_items.c, ui.c), as plain values */
+enum { MI_TUNE, MI_TCH1 };
+static uint32_t host_menu[2] = {50, 0}, host_scr, host_saves, host_lcd_on = 1;
+static uint32_t menu_n(uint32_t r) { return r == MI_TUNE ? 101u : 18u; }
+static uint32_t menu_get(uint32_t r) { return host_menu[r & 1u]; }
+static void menu_put(uint32_t r, uint32_t v) { host_menu[r & 1u] = v; }
+static const char *menu_vname(uint32_t r, uint32_t v)
+{
+    static char b[8];
+    if (r == MI_TCH1 && v >= 16u) return v == 16u ? "OMNI" : "OFF";
+    b[0] = '+';
+    fmt_int(b + (r == MI_TUNE && (int32_t)v > 50), r == MI_TUNE ? (int32_t)v - 50 : (int32_t)v + 1);
+    return b;
+}
+static const uint8_t SCR_MIN[5] = {0, 5, 15, 30, 60};
+static uint32_t scr_get(void) { return host_scr; }
+static void scr_put(uint32_t v) { host_scr = v; }
+static void settings_save(void) { host_saves++; }
+static void lcd_power(uint32_t s) { host_lcd_on = s != 0u; }
+#ifndef HOST_HAS_FAVORITES
+static struct { uint8_t factory[16][32]; uint32_t user, filter; } favorites;
+#endif
 
 #include "../firmware/src/m1_ui.c"
 #include "../firmware/src/m1_draw.c"
 
 /* ------------------------------------------------------------ the film */
 static const char *dir;
-static uint32_t nframe, fails;
+static uint32_t nframe, fails, no_shots;
 static void shot(void)
 {
     char p[512];
@@ -91,7 +114,7 @@ static void run(uint32_t ms)
             fails++;
         }
         fm1_ms += 15u;
-        if (fm1_ms % 40u < 15u)
+        if (fm1_ms % 40u < 15u && !no_shots)
             shot();
     }
 }
@@ -123,6 +146,7 @@ static void life(uint32_t clip)
 int main(int argc, char **argv)
 {
     uint32_t k;
+    int16_t cut;
     dir = argc > 1 ? argv[1] : "build/m1_screen";
     host_tracks_init();
     fm1_ms = 1000;
@@ -151,6 +175,30 @@ int main(int argc, char **argv)
     run(2500);
     for (k = 0; k < 30u; k++) { fm1_in.fader[0] = (uint8_t)(k * 127 / 29); fm1_in.fader[1] = (uint8_t)(110 - k * 110 / 29); run(60); }
     run(2000);
+    /* GLOBE: K2 .. K7, one setting each, saved; the cat back after */
+    cut = M1T->p[P_E3];
+    host_pressed = 1u << 10; run(800);
+    host_enc[1] = 2; run(500);                                               /* CANAL MIDI 1 -> 3 (a fast turn: +1) */
+    host_enc[2] = 1; run(500);                                               /* VELOCITE: DOUCE */
+    host_enc[3] = -1; run(300); host_enc[3] = -3; run(500);                  /* ACCORDAGE -1, then -5 */
+    host_enc[4] = 1; run(500);                                               /* LUMIERE PADS: VIVE */
+    host_enc[5] = 1; run(500);                                               /* VEILLE ECRAN: 5 MIN */
+    host_enc[6] = 1; run(1500);                                              /* LE CHAT: CALME */
+    if (host_menu[MI_TCH1] != 1u || smk_vel_curve != 1u || host_menu[MI_TUNE] != 44u || M1G[M1G_PADS] != 3u ||
+        host_scr != 1u || M1G[M1G_CAT] != 1u || M1G[M1G_MAGIC] != 'M' || !host_saves) {
+        printf("m1_screen: FAIL GLOBE: ch %u vel %u tune %u pads %u scr %u cat %u saves %u\n", host_menu[MI_TCH1],
+               smk_vel_curve, host_menu[MI_TUNE], M1G[M1G_PADS], host_scr, M1G[M1G_CAT], host_saves);
+        fails++;
+    }
+    if (M1T->p[P_E3] != cut) { printf("m1_screen: FAIL GLOBE's knobs changed the sound\n"); fails++; }
+    host_pressed = 1u << 10; run(2000);
+    /* VEILLE ECRAN 5 MIN: dark after five minutes alone, back with a key */
+    no_shots = 1;
+    run(5u * 60000u + 1000u);
+    no_shots = 0;
+    if (host_lcd_on) { printf("m1_screen: FAIL the screen did not sleep\n"); fails++; }
+    key(5, 600); run(600);
+    if (!host_lcd_on) { printf("m1_screen: FAIL a key did not wake the screen\n"); fails++; }
     printf("m1_screen: %u pictures, %.1f s, %.0f px to the LCD a second\n", nframe, nframe * 0.04,
            (double)host_blit_px / (fm1_ms / 1000.0));
     printf("m1_screen: %s\n", fails ? "FAIL" : "ok");

@@ -10,7 +10,7 @@
  *   KNOB BANK / FADER BANK   WAVE 1 / WAVE 2: the next wave of the vending machines (lit where a sound has them)
  *   pitch wheel  bend (seq.c, as Felucca); mod wheel: the cutoff waves, faster as it goes up (the track LFO)
  *   OCTAVE- / +  octaves; ARP the arpeggio; SCALE the scale (snap); CHORD a chord on each key; NOTE REPEAT a
- *                1/16 repeat while held; FX the vintage (fx.c); GLOBE the settings (m1_draw)
+ *                1/16 repeat while held; FX the vintage (fx.c); GLOBE the settings: one knob, one setting (below)
  *   37 keys      their notes (seq.c: the 27 middle keys, the 10 outer ones) on part 1
  * The screen: m1_draw.c. Only part 1 plays; the other three are silent. */
 
@@ -38,7 +38,84 @@ static struct {
     uint32_t notes_ms;       /* the last note played (the cat listens) */
     uint8_t vel;             /* its velocity */
     uint8_t dirty;
-} m1 = {.fader = {0xFF, 0xFF, 0xFF, 0xFF}};
+    uint32_t active_ms;      /* the last hand on anything (the screen sleeps after MENU's time) */
+    uint8_t grow;            /* GLOBE: the setting turned last (0xFF none) */
+    uint32_t grow_ms;
+} m1 = {.fader = {0xFF, 0xFF, 0xFF, 0xFF}, .grow = 0xFF};
+
+/* GLOBE, the settings: K2 .. K7 one each. Kept with the settings, in bytes no engine uses: favorites.factory[13]
+ * 24..31 (VILLE's favorites are bits of bytes 0..1; Modular One shows none). [0] 'M' once written. */
+enum { G1_CH, G1_VEL, G1_TUNE, G1_PADS, G1_SCR, G1_CAT, G1_N };
+static const char *const G1_NAME[G1_N] = {"CANAL MIDI", "VELOCITE", "ACCORDAGE", "LUMIERE PADS", "VEILLE ECRAN", "LE CHAT"};
+static const char *const G1_VEL_N[4] = {"NORMALE", "DOUCE", "DURE", "FIXE"};
+static const char *const G1_PADS_N[4] = {"TAMISEE", "DOUCE", "CLAIRE", "VIVE"};
+static const char *const G1_SCR_N[5] = {"JAMAIS", "5 MIN", "15 MIN", "30 MIN", "60 MIN"};
+static const char *const G1_CAT_N[3] = {"VIVANT", "CALME", "SAGE"};
+#define M1G (favorites.factory[13] + 24)
+enum { M1G_MAGIC, M1G_VEL, M1G_PADS, M1G_CAT };
+
+static uint32_t g1_n(uint32_t r)
+{
+    return r == G1_CH ? menu_n(MI_TCH1) : r == G1_VEL ? 4u : r == G1_TUNE ? menu_n(MI_TUNE) : r == G1_PADS ? 4u :
+           r == G1_SCR ? 5u : 3u;
+}
+static uint32_t g1_get(uint32_t r)
+{
+    return r == G1_CH ? menu_get(MI_TCH1) : r == G1_VEL ? M1G[M1G_VEL] % 4u : r == G1_TUNE ? menu_get(MI_TUNE) :
+           r == G1_PADS ? M1G[M1G_PADS] % 4u : r == G1_SCR ? scr_get() : M1G[M1G_CAT] % 3u;
+}
+/* the value's words (b: 12 bytes) */
+static const char *g1_vname(uint32_t r, char *b)
+{
+    uint32_t v = g1_get(r);
+    switch (r) {
+    case G1_CH: return menu_vname(MI_TCH1, v);
+    case G1_VEL: return G1_VEL_N[v];
+    case G1_TUNE: str_cpy(b, menu_vname(MI_TUNE, v), 8); str_cpy(b + str_len(b), " CT", 4); return b;
+    case G1_PADS: return G1_PADS_N[v];
+    case G1_SCR: return G1_SCR_N[v % 5u];
+    default: return G1_CAT_N[v];
+    }
+}
+static void g1_put(uint32_t r, uint32_t v)
+{
+    switch (r) {
+    case G1_CH: menu_put(MI_TCH1, v); break;
+    case G1_VEL: M1G[M1G_VEL] = (uint8_t)v; smk_vel_curve = (uint8_t)v; break;
+    case G1_TUNE: menu_put(MI_TUNE, v); break;
+    case G1_PADS: M1G[M1G_PADS] = (uint8_t)v; break;
+    case G1_SCR: scr_put(v); break;
+    default: M1G[M1G_CAT] = (uint8_t)v; break;
+    }
+    M1G[M1G_MAGIC] = 'M';
+    M1G[4] = (uint8_t)menu_get(MI_TUNE);                                     /* (the project's two: kept here too, */
+    M1G[5] = (uint8_t)menu_get(MI_TCH1);                                     /*  Modular One has no project) */
+    settings_save();                                                         /* (queued: settings_poll writes it) */
+}
+static void g1_turn(uint32_t r, int32_t s)
+{
+    int32_t n = (int32_t)g1_n(r), v = (int32_t)g1_get(r) + (s > 0 ? 1 : -1);
+    if (r == G1_TUNE && (s > 1 || s < -1))
+        v += s > 0 ? 4 : -4;                                                 /* (a fast turn: 5 cents) */
+    g1_put(r, (uint32_t)clamp(v, 0, n - 1));
+    m1.grow = (uint8_t)r;
+    m1.grow_ms = fm1_ms;
+    m1.dirty = 1;
+}
+static void g1_boot(void)                                                    /* the saved settings, at power-on */
+{
+    if (M1G[M1G_MAGIC] != 'M') {
+        M1G[M1G_VEL] = 0;
+        M1G[M1G_PADS] = 2;
+        M1G[M1G_CAT] = 0;
+        return;
+    }
+    smk_vel_curve = (uint8_t)(M1G[M1G_VEL] % 4u);
+    if (M1G[4] < menu_n(MI_TUNE))
+        menu_put(MI_TUNE, M1G[4]);
+    if (M1G[5] < menu_n(MI_TCH1))
+        menu_put(MI_TCH1, M1G[5]);
+}
 
 #define M1T (&trk[0])
 
@@ -47,7 +124,7 @@ static void m1_touch(uint32_t kind, uint32_t what, int32_t v)
     m1.touched = (uint8_t)kind;
     m1.what = (uint8_t)what;
     m1.value = (int16_t)v;
-    m1.t_ms = fm1_ms;
+    m1.t_ms = m1.active_ms = fm1_ms;
     m1.dirty = 1;
 }
 
@@ -119,6 +196,7 @@ static void m1_init(void)
     song.g[G_DTIME] = 1;
     song.g[G_DMIX] = 100;
     smk_pad_free = 1;                                                        /* pads are ours: not notes */
+    g1_boot();
     m1_sound(0);
 }
 
@@ -167,6 +245,8 @@ static void m1_btn(uint32_t id, int down)
         break;
     case 10:                                                                 /* GLOBE: the settings */
         m1.globe ^= 1u;
+        m1.grow = 0xFF;
+        m1.active_ms = fm1_ms;
         m1.dirty = 1;
         break;
     case 14:                                                                 /* FX: the vintage */
@@ -198,7 +278,11 @@ static void m1_input(void)
             m1_sound((uint32_t)e >> 8);
     for (k = 0; k < M1_NK; k++) {                                            /* K2 .. K8 */
         int32_t s = fm1_enc_take(k + 1u);
-        if (s) {
+        if (s && m1.globe) {                                                 /* GLOBE: K2 .. K7 the settings */
+            m1.active_ms = fm1_ms;
+            if (k < G1_N)
+                g1_turn(k, s);
+        } else if (s) {
             uint32_t id = M1_K_PARAM[k];
             int32_t lo = 0, hi = 127, v;
             if (s > 1 || s < -1)
@@ -221,7 +305,7 @@ static void m1_input(void)
         uint32_t n = fm1_input_note_edges();
         if (n) {
             uint32_t i;
-            m1.notes_ms = fm1_ms;
+            m1.notes_ms = m1.active_ms = fm1_ms;
             for (i = 0; i < 27u; i++)
                 if ((n >> i) & 1u)
                     m1.vel = fm1_in.key_vel[SMK_KEY_F3 + i];
@@ -233,10 +317,12 @@ static void m1_leds(void)
 {
     uint32_t p, w = m1_waves();
     track_t *t = M1T;
+    static const uint8_t LIT[4] = {20, 45, 75, 100}, DIM[4] = {4, 7, 11, 15};   /* GLOBE LUMIERE PADS, % */
+    uint32_t b = M1G[M1G_PADS] % 4u;
     for (p = 0; p < 16u; p++) {
         const uint8_t *c = M1_PAD_RGB[p];
-        uint32_t lit = p == m1.pad, d = lit ? 1u : 7u;
-        padled_set(p, (uint8_t)(c[0] / d), (uint8_t)(c[1] / d), (uint8_t)(c[2] / d));
+        uint32_t pc = p == m1.pad ? LIT[b] : DIM[b];
+        padled_set(p, (uint8_t)(c[0] * pc / 100u), (uint8_t)(c[1] * pc / 100u), (uint8_t)(c[2] * pc / 100u));
     }
     fm1_led_key(SMK_BTN_KNOB_BANK, (w & 1u) != 0);
     fm1_led_key(SMK_BTN_FADER_BANK, (w & 2u) != 0);

@@ -301,8 +301,19 @@ static void smk__extq(uint32_t k, uint32_t vel)
     smk_extq_w = (uint8_t)((w + 1u) % SMK_EXTQ);
 }
 
+/* the keys' velocity curve (Modular One GLOBE; 0 = as measured): 1 SOFT (light hands: louder), 2 HARD, 3 FIXED 100 */
+static volatile uint8_t smk_vel_curve;
+static uint32_t smk_velmap(uint32_t v)
+{
+    uint32_t c = smk_vel_curve, u = 127u - (v > 127u ? 127u : v);
+    v = c == 1u ? 127u - u * u / 127u : c == 2u ? v * v / 127u : c == 3u ? 100u : v;
+    return v ? v : 1u;
+}
+
 static void smk__key_event(uint32_t k, uint32_t vel)     /* vel 0 = release */
 {
+    if (vel)
+        vel = smk_velmap(vel);
     if (vel)
         fm1_in.key_vel[k] = (uint8_t)vel;
     if (k >= SMK_KEY_F3 && k < SMK_KEY_F3 + 27u) {

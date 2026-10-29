@@ -184,13 +184,18 @@ static void cat_think(void)
         cat.next_life = now + 12000u;
     if ((int32_t)(now - cat.next_life) < 0)
         return;
+    if (M1G[M1G_CAT] % 3u == 2u && !cat_night()) {                          /* SAGE: he only sits (and sleeps at night) */
+        cat.next_life = now + 60000u;
+        return;
+    }
     if (cat_night())                                                         /* night: kneading, a yawn, then dodo */
         cat_play(CAT_NIGHT_LIFE[cat_rand(sizeof CAT_NIGHT_LIFE)]);
     else if (now - cat.quiet_since > 180000u)                                /* three minutes alone: sleepy */
         cat_play(cat_rand(2) ? CAT_BAILLEMENT : CAT_ENDORT);
     else
         cat_play(CAT_DAY_LIFE[cat_rand(sizeof CAT_DAY_LIFE)]);
-    cat.next_life = now + 15000u + cat_rand(25000u);
+    cat.next_life = M1G[M1G_CAT] % 3u == 1u ? now + 60000u + cat_rand(120000u)   /* CALME: every 1 .. 3 min */
+                                            : now + 15000u + cat_rand(25000u);  /* VIVANT: 15 .. 40 s */
 }
 
 /* the next step of the clip when its time comes: decoded, and its rows drawn */
@@ -291,14 +296,76 @@ static void m1_band(void)
     cv_blit(0, BAND_Y);
 }
 
-/* ------------------------------------------------------------ GLOBE: the settings (to come) */
-static void m1_globe_draw(void)
+/* ------------------------------------------------------------ GLOBE: the settings, one knob each */
+#define G1_BG M1_RGB(24, 20, 26)
+static void m1_globe_row(uint32_t r)
 {
-    lcd_fill(0, 0, 240, 240, M1_RGB(24, 20, 26));
-    cv_begin(240u, 60u, M1_RGB(24, 20, 26));
-    cv_text(10, 4, &AF_M, "REGLAGES", M1_RGB(244, 236, 220));
-    cv_text(10, 30, &AF_S, "GLOBE pour revenir", M1_RGB(150, 140, 150));
-    cv_blit(0, 90);
+    char b[12], k[4] = {'K', (char)('2' + r), 0, 0};
+    const uint8_t *rgb = M1_PAD_RGB[m1.pad];
+    uint16_t acc = M1_RGB(rgb[0], rgb[1], rgb[2]), ink = M1_RGB(244, 236, 220), dim = M1_RGB(120, 110, 122);
+    int hot = m1.grow == r && fm1_ms - m1.grow_ms < 3000u;
+    cv_begin(240u, 28u, hot ? M1_RGB(44, 38, 48) : G1_BG);
+    cv_text(10, 6, &AF_S, k, hot ? acc : dim);
+    cv_text(38, 5, &AF_M, G1_NAME[r], hot ? ink : M1_RGB(200, 192, 200));
+    cv_text_r(230, 5, &AF_M, g1_vname(r, b), hot ? acc : ink, hot ? M1_RGB(44, 38, 48) : G1_BG);
+    cv_blit(0, 40u + r * 28u);
+}
+
+/* the whole page once, then a row when it changes (and the highlight going out after 3 s) */
+static void m1_globe_draw(int all)
+{
+    static uint32_t sig[G1_N];
+    uint32_t r;
+    if (all) {
+        lcd_fill(0, 0, 240, 240, G1_BG);
+        cv_begin(240u, 36u, G1_BG);
+        cv_text(10, 10, &AF_M, "REGLAGES", M1_RGB(244, 236, 220));
+        cv_text_r(230, 12, &AF_S, "GLOBE: retour", M1_RGB(120, 110, 122), G1_BG);
+        cv_blit(0, 2);
+        cv_begin(240u, 30u, G1_BG);
+        cv_text(10, 8, &AF_S, "MODULAR ONE  SMK-37", M1_RGB(120, 110, 122));
+        cv_blit(0, 208);
+    }
+    for (r = 0; r < G1_N; r++) {
+        uint32_t v = g1_get(r) | (m1.grow == r && fm1_ms - m1.grow_ms < 3000u ? 0x100u : 0u) | (uint32_t)m1.pad << 12;
+        if (all || v != sig[r]) {
+            sig[r] = v;
+            m1_globe_row(r);
+        }
+    }
+}
+
+/* ------------------------------------------------------------ the screen asleep (GLOBE VEILLE ECRAN) */
+static struct { uint8_t st; uint32_t t; } m1_scr;                            /* 0 on, 1 off, 2 waking (SLPOUT sent) */
+
+/* 1 = draw; 0 = the panel is dark or waking */
+static int m1_screen_awake(void)
+{
+    uint32_t lim = SCR_MIN[scr_get() % 5u] * 60000u, now = fm1_ms;
+    int active = (int32_t)(now - m1.active_ms) < 1000;
+    switch (m1_scr.st) {
+    case 0:
+        if (!lim || (int32_t)(now - m1.active_ms) < (int32_t)lim)
+            return 1;
+        lcd_power(0);                                                        /* DISPOFF, SLPIN */
+        m1_scr.st = 1;
+        m1_scr.t = now;
+        return 0;
+    case 1:
+        if (active && now - m1_scr.t >= 120u) {
+            lcd_power(1);                                                    /* SLPOUT */
+            m1_scr.st = 2;
+            m1_scr.t = now;
+        }
+        return 0;
+    default:
+        if (now - m1_scr.t < 120u)
+            return 0;
+        m1_scr.st = 0;
+        cat.full = 1;                                                        /* everything again, then the panel on */
+        cat.band_sig = 0xFFFFFFFFu;
+        return 2;
+    }
 }
 
 static void m1_draw(void)
@@ -306,10 +373,14 @@ static void m1_draw(void)
     static uint8_t globe;
     uint32_t now = fm1_ms;
     int32_t night = m1.fader[0] == 0xFF ? 0 : 127 - m1.fader[0], winter = m1.fader[1] == 0xFF ? 0 : m1.fader[1];
+    int wake = m1_screen_awake();
+    if (!wake)
+        return;
     if (m1.globe) {
-        if (!globe)
-            m1_globe_draw();
+        m1_globe_draw(!globe || wake == 2);
         globe = 1;
+        if (wake == 2)
+            lcd_power(2);
         return;
     }
     if (globe) {                                                             /* back from GLOBE: everything again */
@@ -347,5 +418,7 @@ static void m1_draw(void)
         scene_rows(0, CAT_SCENE);
     }
     m1_band();
+    if (wake == 2)
+        lcd_power(2);                                                        /* DISPON: the picture is there */
     m1.dirty = 0;
 }
