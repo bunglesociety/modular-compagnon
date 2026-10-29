@@ -1,30 +1,35 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Alexis Arakis (Bungle Society) */
 /* Modular One on the SMK-37: the screen. A little black cat lives in it.
- *   the scene    240 x 204: an 80 x 68 grid of 3 x 3 px cells (tools/gen_cat.py draws him there). The wall and the
- *                floor follow fader 1 (day up, night down: stars come out), fader 2 brings the snow (the FM winter).
- *   the cat      clips of frames (cat_sprites.h): he sits and breathes, listens when you play (eyes ^^, notes), looks
- *                at a control you touch, and when you leave him alone he lives his life (griffes on the edge of the
- *                screen, toilette, roulade, la folie, chasse, mlem, ...). At night he falls asleep; playing wakes him.
- *   the band     240 x 36 at the bottom: the sound (in its pad's colour) and the control touched, with its value.
- * Only what changed goes to the LCD: the rows the cat moved in, the band when its text changes; the whole scene
- * when the sky changes or while snow falls. */
+ *   the room     240 x 240: an 80 x 80 grid of 3 x 3 px cells. An old paper wall (a grain in it, the corners a little
+ *                darker), a skirting board, a wooden floor. Fader 1 brings the night (stars come out), fader 2 the
+ *                snow (the FM winter).
+ *   the cat      clips of frames (cat_sprites.h, tools/gen_cat.py, his 80 x 68 cells): he sits and breathes, listens
+ *                when you play (eyes ^^, notes), looks at a control you touch, and when you leave him alone he lives
+ *                his life (griffes on the edge of the screen, toilette, roulade, la folie, chasse, mlem, ...). At night
+ *                he falls asleep; playing wakes him.
+ *   the words    on the floor, in the pixel letters of Modular One (Silkscreen at 2x, m1_pixfont.h): the sound, or
+ *                the control touched with its value and a bar of blocks.
+ * Only what changed goes to the LCD: the rows the cat moved in, the floor's words when they change; the whole room
+ * when the light changes or while snow falls. GLOBE (the settings) is a page of its own, in the same letters. */
 #include "cat_sprites.h"
+#include "m1_pixfont.h"
 
 #define M1_RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
-#define CAT_SKY_ROWS 56u                         /* the wall above, the floor below */
-#define BAND_Y 204u
+#define ROOM_G 80u                               /* the room's rows (the cat's: CAT_SCENE) */
+#define WALL_ROWS 56u                            /* the wall above, the skirting board, the floor below */
+#define CAP_GY 68u                               /* the floor's words: grid rows 68 .. 79 (screen 204 .. 239) */
 
 static uint8_t cat_buf[CAT_G * CAT_SCENE] __attribute__((section(".pool")));
 static struct {
     uint8_t clip, step, behaving;
     uint32_t t_next, quiet_since, next_life;
     uint8_t box[4];                               /* the frame on screen: x y w h */
-    int16_t night, winter;                        /* the sky drawn (-1: never) */
+    int16_t night, winter;                        /* the light drawn (-1: never) */
     uint32_t snow_t, rnd;
-    uint8_t full;                                 /* the whole scene to draw */
-    uint32_t band_sig;
-} cat = {.night = -1, .winter = -1, .rnd = 0x2545F491u, .full = 1, .band_sig = 0xFFFFFFFFu};
+    uint8_t full;                                 /* the whole room to draw */
+    uint32_t cap_sig;
+} cat = {.night = -1, .winter = -1, .rnd = 0x2545F491u, .full = 1, .cap_sig = 0xFFFFFFFFu};
 
 static struct { uint8_t x, y, dx; } snow[32];
 
@@ -34,6 +39,48 @@ static uint32_t cat_rand(uint32_t n)
     x ^= x << 13; x ^= x >> 17; x ^= x << 5;
     cat.rnd = x;
     return n ? x % n : x;
+}
+
+/* ------------------------------------------------------------ the pixel letters */
+static int32_t pf_width(const char *s)
+{
+    int32_t w = 0;
+    for (; *s; s++)
+        w += 2 * PF_ADV[((uint8_t)*s - 32u) < 95u ? (uint8_t)*s - 32u : 0u];
+    return w;
+}
+
+/* s at 2x into a buffer of bw x bh (colour as the LCD takes it: swapped), its top-left at x, y (may be outside) */
+static void pf_draw(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, const char *s, uint16_t c)
+{
+    for (; *s; s++) {
+        uint32_t g = (uint8_t)*s - 32u, r, k;
+        if (g >= 95u)
+            g = 0;
+        for (r = 0; r < 10u; r++) {
+            int32_t yy = y + (int32_t)r;
+            uint32_t bits = PF_ROWS[g][r >> 1];
+            if (yy < 0 || yy >= (int32_t)bh || !bits)
+                continue;
+            for (k = 0; k < 16u; k++)
+                if (bits & (0x80u >> (k >> 1))) {
+                    int32_t xx = x + (int32_t)k;
+                    if (xx >= 0 && xx < (int32_t)bw)
+                        buf[(uint32_t)yy * bw + (uint32_t)xx] = c;
+                }
+        }
+        x += 2 * PF_ADV[g];
+    }
+}
+
+static void pf_rect(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c)
+{
+    int32_t i, j;
+    for (j = y; j < y + h; j++)
+        if (j >= 0 && j < (int32_t)bh)
+            for (i = x; i < x + w; i++)
+                if (i >= 0 && i < (int32_t)bw)
+                    buf[(uint32_t)j * bw + (uint32_t)i] = c;
 }
 
 /* ------------------------------------------------------------ frames: a key, or a patch on a key */
@@ -64,32 +111,151 @@ static void cat_frame(uint32_t fi)
     cat_decode(f);
 }
 
-/* ------------------------------------------------------------ the scene */
+/* ------------------------------------------------------------ the floor's words */
+static const char *const M1_F_NAME[4] = {"JOUR/NUIT", "FM", "TEMPS", "ECHO"};
+static const char *const M1_B_NAME[18] = {"ONDE 1", "ONDE 2", "", "", "OCTAVE", "OCTAVE", "ARP", "REPEAT", "GAMME",
+                                          "ACCORD", "REGLAGES", "", "", "", "VINTAGE", "", "", ""};   /* (the tape's: M1T_TAPE) */
+static struct {
+    char lab[20], val[20], head[24];
+    const char *snd;
+    int16_t bar;                                  /* 0..127, -1 none */
+    uint8_t show;
+} cap;
+
+static uint32_t m1_hash(uint32_t h, const char *t)
+{
+    while (*t)
+        h = (h ^ (uint8_t)*t++) * 16777619u;
+    return h * 16777619u;
+}
+
+/* the piece the tape shows: playing, else where PLAY starts */
+static const char *m1_piece(void)
+{
+    uint32_t k = demo_on ? pl_idx : pl_start;
+    return pl_count ? pl_item[k % pl_count].name : "";
+}
+
+/* what the floor says now; 1 = it changed */
+static int m1_caption(void)
+{
+    uint32_t sig;
+    cap.lab[0] = cap.val[0] = cap.head[0] = 0;
+    cap.bar = -1;
+    cap.snd = N_VILLE_MODE[M1T->p[P_E0] % VM_N];
+    cap.show = m1.touched != M1T_NONE && m1.touched != M1T_PAD && fm1_ms - m1.t_ms < 2500u;
+    if (demo_on) {                                                           /* the tape plays: its piece first */
+        cap.head[0] = '>';
+        cap.head[1] = ' ';
+        str_cpy(cap.head + 2, m1_piece(), sizeof cap.head - 2u);
+    }
+    if (cap.show) {
+        switch (m1.touched) {
+        case M1T_KNOB: str_cpy(cap.lab, M1_K_NAME[m1.what % M1_NK], sizeof cap.lab); cap.bar = m1.value; break;
+        case M1T_FADER:
+            str_cpy(cap.lab, m1.what == 1u && VM_TOWN((uint32_t)M1T->p[P_E0]) ? "MONTEE" : M1_F_NAME[m1.what & 3u],
+                    sizeof cap.lab);
+            cap.bar = m1.value;
+            break;
+        case M1T_VOL: str_cpy(cap.lab, "VOLUME", sizeof cap.lab); cap.bar = m1.value; break;
+        case M1T_WAVE:
+            str_cpy(cap.lab, m1.what == 1u ? "ONDE 1" : "ONDE 2", sizeof cap.lab);
+            str_cpy(cap.val, m1.value < 22 ? "SCIE" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "CARRE",
+                    sizeof cap.val);
+            break;
+        case M1T_TAPE:
+            if (fm1_ms - m1.msg_ms < 2500u && m1.msg[0]) {                   /* kept, erased, full, ...: the words alone */
+                str_cpy(cap.lab, m1.msg, sizeof cap.lab);
+            } else if (pl_count) {
+                str_cpy(cap.lab, demo_on ? "LECTURE" : "MAGNETO", sizeof cap.lab);
+                str_cpy(cap.val, m1_piece(), sizeof cap.val);
+            }
+            break;
+        default:
+            str_cpy(cap.lab, m1.what < 18u ? M1_B_NAME[m1.what] : "", sizeof cap.lab);
+            if (m1.what == FM1_BTN_OCT_DOWN || m1.what == FM1_BTN_OCT_UP) {
+                cap.val[0] = '+';
+                fmt_int(cap.val + (m1.value > 0), m1.value);
+            } else {
+                str_cpy(cap.val, m1.value ? "ON" : "OFF", sizeof cap.val);
+            }
+            break;
+        }
+        if (!cap.lab[0])
+            cap.show = 0;
+        if (cap.val[0] && pf_width(cap.lab) + pf_width(cap.val) + 14 > 220)   /* no room for both: the value */
+            str_cpy(cap.lab, cap.val, sizeof cap.lab), cap.val[0] = 0;
+    }
+    if (cap.bar >= 0 && !cap.val[0])                                         /* the number, as Modular One shows it */
+        fmt_int(cap.val, cap.bar);
+    sig = m1_hash(m1_hash(m1_hash(m1_hash(2166136261u, cap.lab), cap.val), cap.head), cap.snd) ^
+          (uint32_t)(cap.bar + 1) ^ ((uint32_t)m1.pad << 24) ^ (cap.show ? 0x40000000u : 0u);
+    if (sig == cat.cap_sig)
+        return 0;
+    cat.cap_sig = sig;
+    return 1;
+}
+
+/* ------------------------------------------------------------ the room */
 static const uint8_t STARS[18][2] = {
     {5, 6}, {14, 15}, {22, 4}, {31, 10}, {44, 3}, {52, 12}, {60, 5}, {70, 9}, {76, 20}, {9, 28},
     {66, 30}, {38, 22}, {3, 44}, {74, 40}, {27, 34}, {57, 24}, {48, 40}, {18, 46},
 };
+enum { RC_WALL, RC_GRAIN, RC_BOARD, RC_FLOOR, RC_PLANK, RC_SHADOW, RC_N };
+/* day, snow (the day whitened a little, still warm), night */
+static const uint8_t ROOM_DAY[RC_N][3] = {{0xdc, 0xca, 0xa4}, {0xd2, 0xbe, 0x97}, {0xa0, 0x86, 0x60},
+                                          {0xc4, 0xab, 0x80}, {0xb5, 0x9b, 0x71}, {0xa8, 0x8f, 0x69}};
+static const uint8_t ROOM_SNOW[RC_N][3] = {{0xe3, 0xdc, 0xc9}, {0xd9, 0xd1, 0xbd}, {0xa7, 0x98, 0x80},
+                                           {0xd3, 0xc9, 0xb2}, {0xc6, 0xbb, 0xa3}, {0xb3, 0xa7, 0x90}};
+static const uint8_t ROOM_NIGHT[RC_N][3] = {{0x26, 0x22, 0x40}, {0x22, 0x1e, 0x3a}, {0x14, 0x12, 0x26},
+                                            {0x1e, 0x1b, 0x34}, {0x1a, 0x17, 0x2e}, {0x12, 0x10, 0x24}};
+
+static uint16_t room_col(uint32_t k, int32_t w, int32_t n)
+{
+    uint16_t d = M1_RGB(ROOM_DAY[k][0], ROOM_DAY[k][1], ROOM_DAY[k][2]);
+    uint16_t s = M1_RGB(ROOM_SNOW[k][0], ROOM_SNOW[k][1], ROOM_SNOW[k][2]);
+    uint16_t nn = M1_RGB(ROOM_NIGHT[k][0], ROOM_NIGHT[k][1], ROOM_NIGHT[k][2]);
+    return ux_mix(ux_mix(d, s, w * 100 / 127), nn, n * 100 / 127);
+}
+
+/* the ink of the words: sepia by day, old paper by night; the sound's colour, warmed towards the ink */
+static void room_ink(uint16_t *ink, uint16_t *acc, uint16_t *dim)
+{
+    int32_t n = cat.night < 0 ? 0 : cat.night;
+    const uint8_t *rgb = M1_PAD_RGB[m1.pad];
+    uint16_t day = M1_RGB(0x4a, 0x38, 0x28), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
+    *ink = n > 64 ? ngt : day;
+    *acc = ux_mix(pad, *ink, n > 64 ? 25 : 45);
+    *dim = ux_mix(room_col(RC_FLOOR, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
+}
+
+/* the paper's grain: a few cells a shade darker, always the same ones */
+static inline int room_grain(uint32_t x, uint32_t y)
+{
+    uint32_t h = (x * 73856093u) ^ (y * 19349663u);
+    h ^= h >> 13;
+    return (h * 0x5bd1e995u >> 28) < 3u;                                     /* ~ 3 in 16 */
+}
 
 /* grid rows gy0 .. gy1-1 to the LCD (3 screen rows each), through the canvas, 41 grid rows at a time */
 static void scene_rows(uint32_t gy0, uint32_t gy1)
 {
-    uint16_t pal[16], sky, floor_, shadow, star = 0, flake = swap16(M1_RGB(255, 255, 255));
-    uint32_t i, sx0 = 0, sx1 = 0, nflakes = cat.winter > 16 ? (uint32_t)cat.winter / 4u : 0u;
+    static const uint8_t none[CAT_G];
+    uint16_t pal[16], rc[RC_N][4], star = 0, flake, ink, acc, dim;
+    uint32_t i, j, sx0 = 0, sx1 = 0, nflakes = cat.winter > 16 ? (uint32_t)cat.winter / 4u : 0u;
     int32_t n = cat.night < 0 ? 0 : cat.night, w = cat.winter < 0 ? 0 : cat.winter;
-    {   /* the day, a little whiter with the snow, then the night over it */
-        uint16_t s = ux_mix(M1_RGB(0xf7, 0xec, 0xda), M1_RGB(0xe8, 0xed, 0xf3), w * 100 / 127);
-        uint16_t f = ux_mix(M1_RGB(0xef, 0xe1, 0xca), M1_RGB(0xf7, 0xf9, 0xfc), w * 100 / 127);
-        uint16_t h = ux_mix(M1_RGB(0xe4, 0xcf, 0xb0), M1_RGB(0xdf, 0xe6, 0xef), w * 100 / 127);
-        int32_t pn = n * 100 / 127;
-        sky = ux_mix(s, M1_RGB(0x22, 0x24, 0x44), pn);
-        floor_ = ux_mix(f, M1_RGB(0x1c, 0x1d, 0x3a), pn);
-        shadow = ux_mix(h, M1_RGB(0x14, 0x15, 0x2d), pn);
-        if (n > 64)
-            star = swap16(ux_mix(sky, M1_RGB(0xe8, 0xe4, 0xff), (n - 64) * 100 / 63));
-        sky = swap16(sky);
-        floor_ = swap16(floor_);
-        shadow = swap16(shadow);
+    for (i = 0; i < RC_N; i++) {                                             /* each colour, 4 steps darker to the edge */
+        uint16_t c = room_col(i, w, n);
+        for (j = 0; j < 4u; j++)
+            rc[i][j] = swap16(ux_mix(c, M1_RGB(0x20, 0x16, 0x10), (int32_t)j * 7));
     }
+    if (n > 64)
+        star = swap16(ux_mix(room_col(RC_WALL, w, n), M1_RGB(0xf0, 0xe2, 0xc0), (n - 64) * 100 / 63));
+    flake = swap16(M1_RGB(0xf4, 0xee, 0xe0));
+    room_ink(&ink, &acc, &dim);
+    ink = swap16(ink);
+    acc = swap16(acc);
+    dim = swap16(dim);
     if (nflakes > 32u)
         nflakes = 32u;
     for (i = 0; i < 16u; i++)
@@ -99,18 +265,28 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
         sx1 = cat.box[0] + cat.box[2] - 2u;
     }
     while (gy0 < gy1) {
-        uint32_t nr = gy1 - gy0, r;
+        uint32_t nr = gy1 - gy0, r, sy0 = gy0 * 3u;
         if (nr > 41u)
             nr = 41u;                                                        /* 123 px: the canvas holds 124 rows */
         lcd_sync();                                                          /* (the last blit may still read it) */
         for (r = 0; r < nr; r++) {
-            uint32_t gy = gy0 + r, gx, k;
-            uint16_t *row = cv_px + r * 3u * 240u, bg = gy < CAT_SKY_ROWS ? sky : floor_;
-            const uint8_t *c = cat_buf + gy * CAT_G;
+            uint32_t gy = gy0 + r, gx, k, ey = gy < ROOM_G - 1u - gy ? gy : ROOM_G - 1u - gy;
+            uint16_t *row = cv_px + r * 3u * 240u;
+            const uint8_t *c = gy < CAT_SCENE ? cat_buf + gy * CAT_G : none;
             for (gx = 0; gx < CAT_G; gx++) {
-                uint16_t v = bg;
-                if ((gy == 62u || gy == 63u) && gx >= sx0 && gx < sx1)
-                    v = shadow;
+                uint32_t e = gx < CAT_G - 1u - gx ? gx : CAT_G - 1u - gx, kind, lv;
+                uint16_t v;
+                e = e < ey ? e : ey;
+                lv = e < 1u ? 3u : e < 2u ? 2u : e < 4u ? 1u : 0u;           /* the corners and edges, a little darker */
+                if (gy < WALL_ROWS)
+                    kind = room_grain(gx, gy) ? RC_GRAIN : RC_WALL;
+                else if (gy == WALL_ROWS)
+                    kind = RC_BOARD;
+                else if ((gy == 62u || gy == 63u) && gx >= sx0 && gx < sx1)
+                    kind = RC_SHADOW;
+                else
+                    kind = (gy - WALL_ROWS) % 6u == 0u || ((gx + (gy - WALL_ROWS) / 6u * 29u) % 37u == 0u) ? RC_PLANK : RC_FLOOR;
+                v = rc[kind][lv];
                 if (c[gx])
                     v = pal[c[gx]];
                 row[gx * 3u] = row[gx * 3u + 1u] = row[gx * 3u + 2u] = v;
@@ -127,7 +303,27 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
                     if (STARS[k][1] == gy && !c[STARS[k][0]])
                         row[240u + STARS[k][0] * 3u + 1u] = star;
         }
-        lcd_blit(0, gy0 * 3u, 240u, nr * 3u, cv_px);
+        if (gy0 + nr > CAP_GY) {                                             /* the words on the floor */
+            int32_t oy = -(int32_t)sy0;
+            uint32_t bh = nr * 3u;
+            if (!cap.show) {
+                if (cap.head[0]) {
+                    pf_draw(cv_px, 240u, bh, 10, 215 + oy, cap.head, ink);
+                    pf_draw(cv_px, 240u, bh, 230 - pf_width(cap.snd), 215 + oy, cap.snd, acc);
+                } else {
+                    pf_draw(cv_px, 240u, bh, 10, 215 + oy, cap.snd, acc);
+                }
+            } else {
+                pf_draw(cv_px, 240u, bh, 10, 208 + oy, cap.lab, ink);
+                pf_draw(cv_px, 240u, bh, 230 - pf_width(cap.val), 208 + oy, cap.val, cap.bar >= 0 ? acc : ink);
+                if (cap.bar >= 0) {                                          /* a bar of blocks: 36 of 4 px */
+                    int32_t on = (cap.bar * 36 + 63) / 127, b;
+                    for (b = 0; b < 36; b++)
+                        pf_rect(cv_px, 240u, bh, 10 + b * 6, 225 + oy, 4, 4, b < on ? acc : dim);
+                }
+            }
+        }
+        lcd_blit(0, sy0, 240u, nr * 3u, cv_px);
         gy0 += nr;
     }
 }
@@ -240,108 +436,28 @@ static void cat_tick(void)
     }
 }
 
-/* ------------------------------------------------------------ the band */
-static const char *const M1_F_NAME[4] = {"JOUR / NUIT", "FM", "TEMPS", "ECHO"};
-static const char *const M1_B_NAME[18] = {"ONDE 1", "ONDE 2", "", "", "OCTAVE", "OCTAVE", "ARP", "REPEAT", "GAMME",
-                                          "ACCORD", "REGLAGES", "", "", "", "VINTAGE", "", "", ""};   /* (the tape's: M1T_TAPE) */
-
-static uint32_t m1_hash(uint32_t h, const char *t)
-{
-    while (*t)
-        h = (h ^ (uint8_t)*t++) * 16777619u;
-    return h * 16777619u;
-}
-
-/* the piece the tape shows: playing, else where PLAY starts */
-static const char *m1_piece(void)
-{
-    uint32_t k = demo_on ? pl_idx : pl_start;
-    return pl_count ? pl_item[k % pl_count].name : "";
-}
-
-static void m1_band(void)
-{
-    char lab[24], val[20], head[24];
-    const uint8_t *rgb = M1_PAD_RGB[m1.pad];
-    uint16_t acc = M1_RGB(rgb[0], rgb[1], rgb[2]), bg = M1_RGB(24, 20, 26), ink = M1_RGB(244, 236, 220);
-    const char *snd = N_VILLE_MODE[M1T->p[P_E0] % VM_N];
-    uint32_t sig, show = m1.touched != M1T_NONE && m1.touched != M1T_PAD && fm1_ms - m1.t_ms < 2500u;
-    int32_t bar = -1;
-    lab[0] = val[0] = 0;
-    head[0] = 0;
-    if (demo_on) {                                                           /* the tape plays: its piece first */
-        head[0] = '>';
-        head[1] = ' ';
-        str_cpy(head + 2, m1_piece(), sizeof head - 2u);
-    }
-    if (show) {
-        switch (m1.touched) {
-        case M1T_KNOB: str_cpy(lab, M1_K_NAME[m1.what % M1_NK], sizeof lab); bar = m1.value; break;
-        case M1T_FADER:
-            str_cpy(lab, m1.what == 1u && VM_TOWN((uint32_t)M1T->p[P_E0]) ? "MONTEE" : M1_F_NAME[m1.what & 3u], sizeof lab);
-            bar = m1.value;
-            break;
-        case M1T_VOL: str_cpy(lab, "VOLUME", sizeof lab); bar = m1.value; break;
-        case M1T_WAVE:
-            str_cpy(lab, m1.what == 1u ? "ONDE 1" : "ONDE 2", sizeof lab);
-            str_cpy(val, m1.value < 22 ? "SCIE" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "CARRE", sizeof val);
-            break;
-        case M1T_TAPE:
-            if (fm1_ms - m1.msg_ms < 2500u && m1.msg[0]) {                   /* kept, erased, full, ... */
-                str_cpy(lab, "CARNET", sizeof lab);
-                str_cpy(val, m1.msg, sizeof val);
-            } else if (pl_count) {
-                str_cpy(lab, demo_on ? "LECTURE" : "MAGNETO", sizeof lab);
-                str_cpy(val, m1_piece(), sizeof val);
-            }
-            break;
-        default:
-            str_cpy(lab, m1.what < 18u ? M1_B_NAME[m1.what] : "", sizeof lab);
-            if (m1.what == FM1_BTN_OCT_DOWN || m1.what == FM1_BTN_OCT_UP) {
-                val[0] = '+';
-                fmt_int(val + (m1.value > 0), m1.value);
-            } else {
-                str_cpy(val, m1.value ? "ON" : "OFF", sizeof val);
-            }
-            break;
-        }
-    }
-    sig = m1_hash(m1_hash(m1_hash(m1_hash(2166136261u, lab), val), head), snd) ^ (uint32_t)(bar + 1) ^
-          ((uint32_t)m1.pad << 24);
-    if (sig == cat.band_sig)
-        return;
-    cat.band_sig = sig;
-    cv_begin(240u, 36u, bg);
-    if (!show || !lab[0]) {
-        if (head[0]) {
-            cv_text(10, 9, &AF_M, head, ink);
-            cv_text_r(230, 10, &AF_S, snd, acc, bg);
-        } else {
-            cv_text(10, 9, &AF_M, snd, acc);
-        }
-    } else {
-        cv_text(10, 4, &AF_M, lab, ink);
-        cv_text_r(230, 4, &AF_M, val[0] ? val : snd, val[0] ? ink : acc, bg);
-        if (bar >= 0) {
-            cv_rect(10, 27, 220, 3, M1_RGB(70, 62, 66));
-            cv_rect(10, 27, 220 * clamp(bar, 0, 127) / 127, 3, acc);
-        }
-    }
-    cv_blit(0, BAND_Y);
-}
-
 /* ------------------------------------------------------------ GLOBE: the settings, one knob each */
-#define G1_BG M1_RGB(24, 20, 26)
+#define G1_BG M1_RGB(0x2a, 0x22, 0x1c)            /* an old wood */
+#define G1_HOT M1_RGB(0x3c, 0x31, 0x27)
+#define G1_INK M1_RGB(0xe6, 0xd6, 0xb2)
+#define G1_DIM M1_RGB(0x8a, 0x7a, 0x62)
+static void g1_strip(uint32_t y, uint32_t h, uint16_t bg)
+{
+    cv_begin(240u, h, bg);
+    (void)y;
+}
+
 static void m1_globe_row(uint32_t r)
 {
-    char b[12], k[4] = {'K', (char)('2' + r), 0, 0};
+    char b[12], k[3] = {'K', (char)('2' + r), 0};
     const uint8_t *rgb = M1_PAD_RGB[m1.pad];
-    uint16_t acc = M1_RGB(rgb[0], rgb[1], rgb[2]), ink = M1_RGB(244, 236, 220), dim = M1_RGB(120, 110, 122);
+    uint16_t acc = ux_mix(M1_RGB(rgb[0], rgb[1], rgb[2]), G1_INK, 25);
     int hot = m1.grow == r && fm1_ms - m1.grow_ms < 3000u;
-    cv_begin(240u, 28u, hot ? M1_RGB(44, 38, 48) : G1_BG);
-    cv_text(10, 6, &AF_S, k, hot ? acc : dim);
-    cv_text(38, 5, &AF_M, G1_NAME[r], hot ? ink : M1_RGB(200, 192, 200));
-    cv_text_r(230, 5, &AF_M, g1_vname(r, b), hot ? acc : ink, hot ? M1_RGB(44, 38, 48) : G1_BG);
+    const char *v = g1_vname(r, b);
+    g1_strip(40u + r * 28u, 28u, hot ? G1_HOT : G1_BG);
+    pf_draw(cv_px, 240u, 28u, 10, 9, k, swap16(hot ? acc : G1_DIM));
+    pf_draw(cv_px, 240u, 28u, 42, 9, G1_NAME[r], swap16(hot ? G1_INK : ux_mix(G1_INK, G1_BG, 20)));
+    pf_draw(cv_px, 240u, 28u, 230 - pf_width(v), 9, v, swap16(hot ? acc : G1_INK));
     cv_blit(0, 40u + r * 28u);
 }
 
@@ -352,12 +468,12 @@ static void m1_globe_draw(int all)
     uint32_t r;
     if (all) {
         lcd_fill(0, 0, 240, 240, G1_BG);
-        cv_begin(240u, 36u, G1_BG);
-        cv_text(10, 10, &AF_M, "REGLAGES", M1_RGB(244, 236, 220));
-        cv_text_r(230, 12, &AF_S, "GLOBE: retour", M1_RGB(120, 110, 122), G1_BG);
+        g1_strip(2u, 36u, G1_BG);
+        pf_draw(cv_px, 240u, 36u, 10, 14, "REGLAGES", swap16(G1_INK));
+        pf_draw(cv_px, 240u, 36u, 230 - pf_width("GLOBE: RETOUR"), 14, "GLOBE: RETOUR", swap16(G1_DIM));
         cv_blit(0, 2);
-        cv_begin(240u, 30u, G1_BG);
-        cv_text(10, 8, &AF_S, "MODULAR ONE  SMK-37", M1_RGB(120, 110, 122));
+        g1_strip(208u, 30u, G1_BG);
+        pf_draw(cv_px, 240u, 30u, 10, 10, "MODULAR ONE  SMK-37", swap16(G1_DIM));
         cv_blit(0, 208);
     }
     for (r = 0; r < G1_N; r++) {
@@ -372,7 +488,7 @@ static void m1_globe_draw(int all)
 /* ------------------------------------------------------------ the screen asleep (GLOBE VEILLE ECRAN) */
 static struct { uint8_t st; uint32_t t; } m1_scr;                            /* 0 on, 1 off, 2 waking (SLPOUT sent) */
 
-/* 1 = draw; 0 = the panel is dark or waking */
+/* 1 = draw; 0 = the panel is dark or waking; 2 = awake again (draw everything, then DISPON) */
 static int m1_screen_awake(void)
 {
     uint32_t lim = SCR_MIN[scr_get() % 5u] * 60000u, now = fm1_ms;
@@ -397,7 +513,7 @@ static int m1_screen_awake(void)
             return 0;
         m1_scr.st = 0;
         cat.full = 1;                                                        /* everything again, then the panel on */
-        cat.band_sig = 0xFFFFFFFFu;
+        cat.cap_sig = 0xFFFFFFFFu;
         return 2;
     }
 }
@@ -420,7 +536,7 @@ static void m1_draw(void)
     if (globe) {                                                             /* back from GLOBE: everything again */
         globe = 0;
         cat.full = 1;
-        cat.band_sig = 0xFFFFFFFFu;
+        cat.cap_sig = 0xFFFFFFFFu;
     }
     if (night - cat.night > 2 || cat.night - night > 2 || (night != cat.night && (night == 0 || night == 127))) {
         cat.night = (int16_t)night;
@@ -446,12 +562,16 @@ static void m1_draw(void)
         cat.full = 1;
     }
     cat_think();
-    cat_tick();
-    if (cat.full) {
-        cat.full = 0;
-        scene_rows(0, CAT_SCENE);
+    {
+        int words = m1_caption();
+        cat_tick();
+        if (cat.full) {
+            cat.full = 0;
+            scene_rows(0, ROOM_G);
+        } else if (words) {
+            scene_rows(CAP_GY, ROOM_G);
+        }
     }
-    m1_band();
     if (wake == 2)
         lcd_power(2);                                                        /* DISPON: the picture is there */
     m1.dirty = 0;
