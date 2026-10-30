@@ -14,7 +14,7 @@
  *                the sound when a pad picks it, the control touched (its name, its value under it, bigger).
  * Only what changed goes to the LCD: the rows the cat moved in, the words when they change; the whole room
  * when the light changes or while snow falls. GLOBE (the settings) is a page of its own, in the same letters. */
-#include "cat_sprites.h"
+#include "cat_sprites.h"                         /* (tools/gen_pets.py: the cat, the fox, the robot, the fish) */
 #include "m1_pixfont.h"
 
 #define M1_RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
@@ -100,6 +100,17 @@ static void pf_rect(uint16_t *buf, uint32_t bw, uint32_t bh, int32_t x, int32_t 
 }
 
 /* ------------------------------------------------------------ frames: a key, or a patch on a key */
+/* the companion (GLOBE COMPANION): its pictures and clips; the life below is the same for all */
+static const pet_t *PET = &PETS[0];
+#define CAT_PAL (PET->pal)
+#define CAT_DATA (PET->data)
+#define CAT_FRAMES (PET->frames)
+#define CAT_STEPS (PET->steps)
+#define CAT_CLIPS (PET->clips)
+
+static uint32_t pet_n(void) { return PET_N; }
+static const char *pet_name(uint32_t v) { return PETS[v % PET_N].name; }
+
 static void cat_decode(const cat_frame_t *f)
 {
     const uint8_t *d = CAT_DATA + f->off;
@@ -116,7 +127,8 @@ static void cat_decode(const cat_frame_t *f)
     }
 }
 
-static void cat_frame(uint32_t fi)
+/* frame fi, moved dx cells sideways (a walk: one picture moved; what goes past the edge is cut) */
+static void cat_frame(uint32_t fi, int32_t dx)
 {
     const cat_frame_t *f = &CAT_FRAMES[fi];
     uint32_t i;
@@ -125,6 +137,20 @@ static void cat_frame(uint32_t fi)
     if (f->base != 0xFFFFu)
         cat_decode(&CAT_FRAMES[f->base]);
     cat_decode(f);
+    if (dx) {
+        uint32_t y;
+        int32_t x;
+        for (y = 0; y < CAT_SCENE; y++) {
+            uint8_t *row = cat_buf + y * CAT_G;
+            if (dx > 0) {
+                for (x = CAT_G - 1; x >= 0; x--)
+                    row[x] = x - dx >= 0 ? row[x - dx] : 0;
+            } else {
+                for (x = 0; x < (int32_t)CAT_G; x++)
+                    row[x] = x - dx < (int32_t)CAT_G ? row[x - dx] : 0;
+            }
+        }
+    }
 }
 
 /* ------------------------------------------------------------ the floor's words */
@@ -252,12 +278,38 @@ static inline uint32_t grass_kind(uint32_t x, uint32_t y)                   /* y
 }
 static inline int grass_front(uint32_t x) { return ((x * 2246822519u) >> 29) < 3u; }   /* ~3 in 8 columns */
 
+/* the aquarium (a companion of the water, the fish): the screen is its glass. Water (light glints in it), the sand and
+ * its pebbles and shells, the weed; the same kinds as the room's (wall, grain, tip, blade, deep, and the three
+ * flowers: a pebble, a shell, the weed) */
+static const uint8_t AQ_DAY[RC_N][3] = {{0x7e, 0xc3, 0xd8}, {0x94, 0xd0, 0xe2}, {0xe3, 0xc9, 0x9a}, {0xd2, 0xb4, 0x83},
+                                        {0xb8, 0x98, 0x6a}, {0x8e, 0x86, 0x7e}, {0xf2, 0xe4, 0xcc}, {0x4e, 0x9a, 0x58}};
+static const uint8_t AQ_SNOW[RC_N][3] = {{0x9c, 0xd2, 0xe2}, {0xb0, 0xdc, 0xea}, {0xec, 0xdc, 0xc0}, {0xdc, 0xc6, 0x9e},
+                                         {0xc4, 0xaa, 0x80}, {0x9c, 0x96, 0x90}, {0xf4, 0xec, 0xdc}, {0x6a, 0xa8, 0x72}};
+static const uint8_t AQ_NIGHT[RC_N][3] = {{0x14, 0x24, 0x40}, {0x1a, 0x2c, 0x4a}, {0x4a, 0x44, 0x40}, {0x3c, 0x38, 0x36},
+                                          {0x30, 0x2c, 0x2c}, {0x2c, 0x2a, 0x30}, {0x56, 0x52, 0x50}, {0x1c, 0x3a, 0x2a}};
+static const uint8_t AQ_WEED[7][2] = {{6, 18}, {9, 24}, {13, 14}, {60, 16}, {66, 26}, {69, 20}, {74, 12}};   /* column, height */
+static inline uint32_t sand_kind(uint32_t x, uint32_t y)
+{
+    uint32_t k, top = ROOM_G - 4u - ((x * 2654435761u) >> 31), r = (x * 73856093u ^ y * 19349663u) * 0x5bd1e995u >> 28;
+    for (k = 0; k < 7u; k++) {                                               /* the weed, waving up from the sand */
+        uint32_t h = AQ_WEED[k][1], b = AQ_WEED[k][0] + ((y / 4u) & 1u);
+        if (y + h >= ROOM_G && y < top + 1u && (x == b || (x == b + 1u && y % 4u == 1u)))
+            return RC_FWHITE;
+    }
+    if (y < top)
+        return RC_WALL;
+    if (y == top)
+        return r == 3u ? RC_FPINK : r == 9u ? RC_FYEL : RC_TIP;
+    return r < 3u ? RC_DEEP : RC_BLADE;
+}
+
 static uint16_t room_col(uint32_t k, int32_t w, int32_t n)
 {
-    const uint8_t *dc = ROOM_DAY[k];
+    int aq = PET->water;
+    const uint8_t *dc = aq ? AQ_DAY[k] : ROOM_DAY[k], *sc = aq ? AQ_SNOW[k] : ROOM_SNOW[k], *nc = aq ? AQ_NIGHT[k] : ROOM_NIGHT[k];
     uint16_t d = M1_RGB(dc[0], dc[1], dc[2]);
-    uint16_t s = M1_RGB(ROOM_SNOW[k][0], ROOM_SNOW[k][1], ROOM_SNOW[k][2]);
-    uint16_t nn = M1_RGB(ROOM_NIGHT[k][0], ROOM_NIGHT[k][1], ROOM_NIGHT[k][2]);
+    uint16_t s = M1_RGB(sc[0], sc[1], sc[2]);
+    uint16_t nn = M1_RGB(nc[0], nc[1], nc[2]);
     return ux_mix(ux_mix(d, s, w * 100 / 127), nn, n * 100 / 127);
 }
 
@@ -318,11 +370,12 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
                 e = e < ey ? e : ey;
                 lv = 0;                                                      /* (no frame: the screen's edge is his) */
                 (void)e;
-                kind = gy >= ROOM_G - 11u ? grass_kind(gx, gy) : RC_WALL;
+                kind = PET->water ? (gy >= ROOM_G - 26u ? sand_kind(gx, gy) : RC_WALL)
+                                  : gy >= ROOM_G - 11u ? grass_kind(gx, gy) : RC_WALL;
                 if (kind == RC_WALL)
                     kind = room_grain(gx, gy) ? RC_GRAIN : RC_WALL;
                 v = rc[kind][lv];
-                if (c[gx] && !(gy >= ROOM_G - 2u && grass_front(gx)))     /* (a few blades in front of his paws) */
+                if (c[gx] && (PET->water || !(gy >= ROOM_G - 2u && grass_front(gx))))     /* (a few blades in front of his paws) */
                     v = pal[c[gx]];
                 row[gx * 3u] = row[gx * 3u + 1u] = row[gx * 3u + 2u] = v;
             }
@@ -366,6 +419,17 @@ static void cat_play(uint32_t clip)
     cat.step = 0;
     cat.t_next = 0;                                                          /* its first frame: now */
     cat.behaving = clip >= CAT_PETRIR;
+}
+
+/* GLOBE COMPANION: another one moves in (seen when GLOBE closes: everything is drawn again) */
+static void pet_pick(uint32_t v)
+{
+    if (PET == &PETS[v % PET_N])
+        return;
+    PET = &PETS[v % PET_N];
+    cat.box[3] = 0;
+    cat.full = 1;
+    cat_play(CAT_WAKE);
 }
 
 /* (the leg-up wash, his toilette: the ones he does most) */
@@ -460,7 +524,7 @@ static void cat_tick(void)
     cat.t_next = now + s->d10 * 10u;
     if (!cat.t_next)
         cat.t_next = 1;
-    cat_frame(s->f);
+    cat_frame(s->f, s->dx);
     f = &CAT_FRAMES[s->f];
     {
         uint32_t oy0 = cat.box[1], oy1 = cat.box[1] + cat.box[3], ny0 = f->y, ny1 = f->y + f->h, y0, y1;

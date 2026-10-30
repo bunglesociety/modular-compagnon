@@ -203,6 +203,20 @@ int main(int argc, char **argv)
     for (k = CAT_PETRIR; k < CAT_NCLIPS; k++)                               /* his whole life, in order */
         if (k != CAT_ENDORT)
             life(k);
+    {   /* the other companions (GLOBE COMPANION, K8): each one's whole life, then the cat again */
+        uint32_t p;
+        for (p = 1; p <= PET_N; p++) {
+            host_pressed = 1u << 10; run(400);
+            host_enc[7] = 1; run(400);
+            if (p == PET_N) { uint32_t j; for (j = 0; j < PET_N; j++) { host_enc[7] = -1; run(300); } }
+            host_pressed = 1u << 10; run(1500);
+            if (PET != &PETS[p % PET_N]) { printf("m1_screen: FAIL COMPANION %u: %s\n", p % PET_N, PET->name); fails++; }
+            if (p < PET_N)
+                for (k = CAT_PETRIR; k < CAT_NCLIPS; k++)
+                    if (k != CAT_ENDORT)
+                        life(k);
+        }
+    }
     for (k = 0; k < 40u; k++) { fm1_in.fader[0] = (uint8_t)(127 - k * 127 / 39); run(60); }   /* nightfall */
     cat.next_life = fm1_ms;
     run(30000);

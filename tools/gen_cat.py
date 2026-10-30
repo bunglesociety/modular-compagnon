@@ -19,7 +19,7 @@ VIEW = {"k": 1.2, "ax": 40.0, "ay": 62.0, "dy": 17.0}   # scale around the feet,
 
 def T(x, y):
     v = VIEW
-    return (v["ax"] + (x - v["ax"]) * v["k"], v["ay"] + (y - v["ay"]) * v["k"] + v["dy"])
+    return (round(v["ax"] + (x - v["ax"]) * v["k"], 6), round(v["ay"] + (y - v["ay"]) * v["k"] + v["dy"], 6))   # (rounded: a pose moved by whole cells draws the same)
 
 
 class anchor:
@@ -291,7 +291,7 @@ def quest(c):
 
 
 # ------------------------------------------------------------------ clips: (name, loop, [(canvas, ms)])
-def walk(x0, x1, facing, step=3, ms=100):
+def walk(x0, x1, facing, step=2.5, ms=100):   # (2.5: 3 cells, so the steps are one picture moved)
     out, k, x = [], 0, x0
     while (x - x1) * facing < 0:
         out.append((side(cx=x, phase=k % 2, facing=facing), ms)); x += facing * step; k += 1
@@ -329,7 +329,7 @@ fr += [(zzz(sit("content", nod=6), 1 + i // 5), 140) for i in range(14)]
 clip("ENDORT", fr)
 fr = [(sit("open"), 100)] * 8 + [(sit("wide", look=1, tilt=0.12 if i > 10 else 0.0, ear=1 if i % 6 == 0 else 0), 100) for i in range(22)]
 fr += [(sit("wide", look=1, flat=1), 100)] * 2
-fr += [(side(cx=x, phase=k % 2, facing=-1, tail_up=1.6), 100) for k, x in enumerate(range(36, -24, -7))] + [(C(), 100)] * 10
+fr += [(side(cx=36 - 7.5 * k, phase=k % 2, facing=-1, tail_up=1.6), 100) for k in range(8)] + [(C(), 100)] * 10
 fr += walk(-20, 38, 1) + [(sit("open"), 300)]
 clip("VIDE", fr)
 fr, f = [], 1
@@ -374,15 +374,15 @@ clip("TOILETTE", fr)
 fr = [(sit("open"), 110)] * 8 + [(side(cx=40, crouch=3, eyes="content"), 110)] * 4
 fr += [(back(wiggle=(-1, 0, 1, 0)[i % 4]), 110) for i in range(48)] + [(side(cx=40, crouch=3, eyes="content"), 110)] * 4 + [(sit("happy"), 110)] * 8
 clip("ROULADE", fr)
-fr = [(side(cx=24 + i * 2.6, phase=i % 2, facing=1), 110) for i in range(14)]
+fr = [(side(cx=24 + i * 2.5, phase=i % 2, facing=1), 110) for i in range(15)]
 fr += [(marks(up(reach=(-2, 0, 2, 0)[i % 4]), min(3, i // 16 + 1)), 110) for i in range(64)]
 fr += walk(60, 40, -1) + [(sit("open"), 300)]
 clip("GRIFFES", fr)
-seq = [(x, 1) for x in range(-14, 100, 7)] + [(x, -1) for x in range(100, -20, -8)]
+seq = [(-15 + 7.5 * k, 1) for k in range(16)] + [(100 - 7.5 * k, -1) for k in range(16)]
 fr = [(dust(side(cx=x, phase=i % 2, facing=f, tail_up=1.5), [x - f * 14, x - f * 18]), 80) for i, (x, f) in enumerate(seq)]
-fr += [(C(), 80)] * 8 + walk(-20, 38, 1, 4, 80) + [(sit("happy"), 80)] * 8
+fr += [(C(), 80)] * 8 + walk(-20, 38, 1, 5, 80) + [(sit("happy"), 80)] * 8
 clip("FOLIE", fr)
-fr = [(side(cx=38 - i * 3, phase=i % 2, facing=-1), 100) for i in range(7)]
+fr = [(side(cx=38 - i * 2.5, phase=i % 2, facing=-1), 100) for i in range(8)]
 fr += [(hearts(rub(push=(0, 1, 2, 1)[(i // 2) % 4]), min(3, i // 18 + 1)), 110) for i in range(64)]
 fr += walk(20, 38, 1) + [(sit("happy"), 300)]
 clip("TERRITOIRE", fr)

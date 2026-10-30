@@ -58,24 +58,28 @@ static struct {
 
 /* GLOBE, the settings: K2 .. K7 one each. Kept with the settings, in bytes no engine uses: favorites.factory[13]
  * 24..31 (VILLE's favorites are bits of bytes 0..1; Modular One shows none). [0] 'M' once written. */
-enum { G1_CH, G1_VEL, G1_TUNE, G1_PADS, G1_SCR, G1_CAT, G1_N };
-static const char *const G1_NAME[G1_N] = {"MIDI CHANNEL", "VELOCITY", "TUNING", "PADS", "SLEEP", "THE CAT"};
+enum { G1_CH, G1_VEL, G1_TUNE, G1_PADS, G1_SCR, G1_CAT, G1_PET, G1_N };
+static const char *const G1_NAME[G1_N] = {"MIDI CHANNEL", "VELOCITY", "TUNING", "PADS", "SLEEP", "MOOD", "COMPANION"};
 static const char *const G1_VEL_N[4] = {"NORMAL", "SOFT", "HARD", "FIXED"};
 static const char *const G1_PADS_N[4] = {"DIM", "SOFT", "BRIGHT", "VIVID"};
 static const char *const G1_SCR_N[5] = {"NEVER", "5 MIN", "15 MIN", "30 MIN", "60 MIN"};
 static const char *const G1_CAT_N[3] = {"LIVELY", "CALM", "QUIET"};
 #define M1G (favorites.factory[13] + 24)
-enum { M1G_MAGIC, M1G_VEL, M1G_PADS, M1G_CAT };   /* ([4] [5]: TUNE, MIDI CH) */
+enum { M1G_MAGIC, M1G_VEL, M1G_PADS, M1G_CAT, M1G_PET = 7 };   /* ([4] [5]: TUNE, MIDI CH; [6] retired) */
+/* the companion (m1_draw.c: their pictures) */
+static uint32_t pet_n(void);
+static const char *pet_name(uint32_t v);
+static void pet_pick(uint32_t v);
 
 static uint32_t g1_n(uint32_t r)
 {
     return r == G1_CH ? menu_n(MI_TCH1) : r == G1_VEL ? 4u : r == G1_TUNE ? menu_n(MI_TUNE) : r == G1_PADS ? 4u :
-           r == G1_SCR ? 5u : 3u;
+           r == G1_SCR ? 5u : r == G1_PET ? pet_n() : 3u;
 }
 static uint32_t g1_get(uint32_t r)
 {
     return r == G1_CH ? menu_get(MI_TCH1) : r == G1_VEL ? M1G[M1G_VEL] % 4u : r == G1_TUNE ? menu_get(MI_TUNE) :
-           r == G1_PADS ? M1G[M1G_PADS] % 4u : r == G1_SCR ? scr_get() : M1G[M1G_CAT] % 3u;
+           r == G1_PADS ? M1G[M1G_PADS] % 4u : r == G1_SCR ? scr_get() : r == G1_PET ? M1G[M1G_PET] % pet_n() : M1G[M1G_CAT] % 3u;
 }
 /* the value's words (b: 12 bytes) */
 static const char *g1_vname(uint32_t r, char *b)
@@ -87,6 +91,7 @@ static const char *g1_vname(uint32_t r, char *b)
     case G1_TUNE: str_cpy(b, menu_vname(MI_TUNE, v), 8); str_cpy(b + str_len(b), " CT", 4); return b;
     case G1_PADS: return G1_PADS_N[v];
     case G1_SCR: return G1_SCR_N[v % 5u];
+    case G1_PET: return pet_name(v);
     default: return G1_CAT_N[v];
     }
 }
@@ -98,6 +103,7 @@ static void g1_put(uint32_t r, uint32_t v)
     case G1_TUNE: menu_put(MI_TUNE, v); break;
     case G1_PADS: M1G[M1G_PADS] = (uint8_t)v; break;
     case G1_SCR: scr_put(v); break;
+    case G1_PET: M1G[M1G_PET] = (uint8_t)v; pet_pick(v); break;
     default: M1G[M1G_CAT] = (uint8_t)v; break;
     }
     M1G[M1G_MAGIC] = 'M';
@@ -121,8 +127,10 @@ static void g1_boot(void)                                                    /* 
         M1G[M1G_VEL] = 0;
         M1G[M1G_PADS] = 2;
         M1G[M1G_CAT] = 0;
+        M1G[M1G_PET] = 0;
         return;
     }
+    pet_pick(M1G[M1G_PET] % pet_n());                                       /* (the opening shows him asleep) */
     smk_vel_curve = (uint8_t)(M1G[M1G_VEL] % 4u);
     if (M1G[4] < menu_n(MI_TUNE))
         menu_put(MI_TUNE, M1G[4]);
