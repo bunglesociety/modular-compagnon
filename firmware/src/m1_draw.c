@@ -226,7 +226,7 @@ static const uint8_t STARS[18][2] = {
 /* the paper (warm as the pads' white: the panel shows it whiter than it is); the grass (Modular Town's GREEN2 GREEN GREEN3, tools/gen_city.py) and its flowers */
 enum { RC_WALL, RC_GRAIN, RC_TIP, RC_BLADE, RC_DEEP, RC_FPINK, RC_FYEL, RC_FWHITE, RC_N };
 /* day, snow (the day whitened a little, still warm), night */
-static const uint8_t ROOM_DAY[RC_N][3] = {{0xd6, 0xae, 0x78}, {0xcc, 0xa2, 0x6c}, {122, 150, 96}, {98, 128, 84},
+static const uint8_t ROOM_DAY[RC_N][3] = {{0xb0, 0x7a, 0x42}, {0xa4, 0x70, 0x3c}, {122, 150, 96}, {98, 128, 84},
                                           {78, 106, 70}, {246, 200, 206}, {236, 210, 120}, {230, 230, 220}};
 static const uint8_t ROOM_SNOW[RC_N][3] = {{0xdc, 0xc0, 0x98}, {0xd2, 0xb6, 0x8e}, {226, 228, 220}, {150, 168, 136},
                                            {112, 132, 100}, {240, 214, 218}, {236, 222, 170}, {240, 240, 234}};
@@ -252,14 +252,9 @@ static inline uint32_t grass_kind(uint32_t x, uint32_t y)                   /* y
 }
 static inline int grass_front(uint32_t x) { return ((x * 2246822519u) >> 29) < 3u; }   /* ~3 in 8 columns */
 
-/* GLOBE SCREEN: the paper and its grain by day, warmer and deeper (the panel shows them lighter than they are) */
-static const uint8_t ROOM_WARM[4][2][3] = {
-    {{0xd6, 0xae, 0x78}, {0xcc, 0xa2, 0x6c}}, {{0xc4, 0x92, 0x58}, {0xb8, 0x88, 0x50}},
-    {{0xb0, 0x7a, 0x42}, {0xa4, 0x70, 0x3c}}, {{0x98, 0x62, 0x30}, {0x8c, 0x5a, 0x2c}},
-};
 static uint16_t room_col(uint32_t k, int32_t w, int32_t n)
 {
-    const uint8_t *dc = k < 2u ? ROOM_WARM[((M1G[M1G_WARM] ^ 2u) % 4u)][k] : ROOM_DAY[k];
+    const uint8_t *dc = ROOM_DAY[k];
     uint16_t d = M1_RGB(dc[0], dc[1], dc[2]);
     uint16_t s = M1_RGB(ROOM_SNOW[k][0], ROOM_SNOW[k][1], ROOM_SNOW[k][2]);
     uint16_t nn = M1_RGB(ROOM_NIGHT[k][0], ROOM_NIGHT[k][1], ROOM_NIGHT[k][2]);
@@ -271,9 +266,9 @@ static void room_ink(uint16_t *ink, uint16_t *acc, uint16_t *dim)
 {
     int32_t n = cat.night < 0 ? 0 : cat.night;
     const uint8_t *rgb = M1_PAD_RGB[m1.pad];
-    uint16_t day = ((M1G[M1G_WARM] ^ 2u) % 4u) < 2u ? M1_RGB(0x4a, 0x38, 0x28) : M1_RGB(0x2a, 0x1a, 0x10), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
+    uint16_t day = M1_RGB(0x2a, 0x1a, 0x10), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
     *ink = n > 64 ? ngt : day;
-    *acc = n > 64 ? ux_mix(pad, *ink, 70) : ((M1G[M1G_WARM] ^ 2u) % 4u) < 2u ? M1_RGB(0x8a, 0x3c, 0x16) : M1_RGB(0x5c, 0x1e, 0x08);   /* the value: a burnt orange by day */
+    *acc = n > 64 ? ux_mix(pad, *ink, 70) : M1_RGB(0x5c, 0x1e, 0x08);   /* the value: a burnt orange by day */
     *dim = ux_mix(room_col(RC_WALL, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
 }
 
@@ -499,11 +494,6 @@ static void m1_globe_row(uint32_t r)
     pf_draw(cv_px, 240u, 24u, 10, 7, k, swap16(hot ? acc : G1_DIM));
     pf_draw(cv_px, 240u, 24u, 42, 7, G1_NAME[r], swap16(hot ? G1_INK : ux_mix(G1_INK, G1_BG, 20)));
     pf_draw(cv_px, 240u, 24u, 230 - pf_width(v), 7, v, swap16(hot ? acc : G1_INK));
-    if (r == G1_WARM) {                                                      /* SCREEN: the paper itself, a sample */
-        int32_t sx = 230 - pf_width(v) - 34;
-        pf_rect(cv_px, 240u, 24u, sx, 4, 26, 16, swap16(room_col(RC_WALL, 0, 0)));
-        pf_rect(cv_px, 240u, 24u, sx + 4, 8, 6, 4, swap16(room_col(RC_GRAIN, 0, 0)));
-    }
     cv_blit(0, 38u + r * 24u);
 }
 
