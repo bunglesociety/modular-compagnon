@@ -251,10 +251,10 @@ static const uint8_t STARS[18][2] = {
 };
 /* the paper (warm as the pads' white: the panel shows it whiter than it is); the grass (Modular Town's GREEN2 GREEN GREEN3, tools/gen_city.py) and its flowers */
 enum { RC_WALL, RC_GRAIN, RC_TIP, RC_BLADE, RC_DEEP, RC_FPINK, RC_FYEL, RC_FWHITE, RC_N };
-/* day, snow (the day whitened a little, still warm), night */
-static const uint8_t ROOM_DAY[RC_N][3] = {{0xd8, 0xbe, 0x90}, {0xcc, 0xb0, 0x82}, {122, 150, 96}, {98, 128, 84},
+/* day, snow (the day a shade lighter: the snow is the flakes and the grass, the paper stays warm), night */
+static const uint8_t ROOM_DAY[RC_N][3] = {{0xc8, 0x9a, 0x62}, {0xbc, 0x8e, 0x58}, {122, 150, 96}, {98, 128, 84},
                                           {78, 106, 70}, {246, 200, 206}, {236, 210, 120}, {230, 230, 220}};
-static const uint8_t ROOM_SNOW[RC_N][3] = {{0xdc, 0xc0, 0x98}, {0xd2, 0xb6, 0x8e}, {226, 228, 220}, {150, 168, 136},
+static const uint8_t ROOM_SNOW[RC_N][3] = {{0xce, 0xa4, 0x70}, {0xc4, 0x98, 0x66}, {226, 228, 220}, {150, 168, 136},
                                            {112, 132, 100}, {240, 214, 218}, {236, 222, 170}, {240, 240, 234}};
 static const uint8_t ROOM_NIGHT[RC_N][3] = {{0x26, 0x22, 0x40}, {0x22, 0x1e, 0x3a}, {0x2c, 0x3a, 0x3c}, {0x22, 0x30, 0x32},
                                             {0x1a, 0x26, 0x2a}, {0x5a, 0x44, 0x5c}, {0x56, 0x50, 0x48}, {0x50, 0x50, 0x5c}};
