@@ -190,6 +190,13 @@ int main(int argc, char **argv)
     memset(host_fl, 0xFF, sizeof host_fl);
     m1_init();
     m1_boot();
+    ux.mono = 1;                                                            /* Felucca's GREY style kept in the settings: */
+    run(6000);                                                              /* the companion's screen stays in colour */
+    {
+        uint16_t c = host_screen[60u * 240u + 6u];
+        c = (uint16_t)(c >> 8 | c << 8);
+        if (((c >> 11) & 31u) <= (c & 31u) + 4u) { printf("m1_screen: FAIL the paper is not warm under GREY (%04x)\n", c); fails++; }
+    }
     run(3000);                                                              /* IDLE */
     host_enc[1] = -3; run(200); host_enc[1] = -5; run(200); host_enc[1] = -4; run(1400);   /* CUTOFF down */
     if (cat.clip != CAT_LOOK_R) { printf("m1_screen: FAIL no look at the knob (clip %u)\n", cat.clip); fails++; }

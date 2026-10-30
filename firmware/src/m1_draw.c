@@ -18,6 +18,18 @@
 #include "m1_pixfont.h"
 
 #define M1_RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
+/* a colour between a and b (pct of the way to b), always in colour: not gfx.c's ux_mix, which turns everything grey
+ * under Felucca's GREY display style (a setting the keyboard may keep: the paper and the grass came out grey) */
+static uint16_t m1_mix(uint16_t a, uint16_t b, int32_t pct)
+{
+    static const uint8_t SH[3] = {11, 5, 0}, MK[3] = {31, 63, 31};
+    uint32_t out = 0, k;
+    for (k = 0; k < 3u; k++) {
+        int32_t x = (a >> SH[k]) & MK[k], d = (((b >> SH[k]) & MK[k]) - x) * pct;
+        out |= (uint32_t)(x + (d + (d >= 0 ? 50 : -50)) / 100) << SH[k];
+    }
+    return (uint16_t)out;
+}
 #define ROOM_G 80u                               /* the room's rows (the cat's: CAT_SCENE) */
 #define CAP_GY 25u                               /* the words: grid rows 0 .. 24 (screen 0 .. 74) */
 
@@ -310,7 +322,7 @@ static uint16_t room_col(uint32_t k, int32_t w, int32_t n)
     uint16_t d = M1_RGB(dc[0], dc[1], dc[2]);
     uint16_t s = M1_RGB(sc[0], sc[1], sc[2]);
     uint16_t nn = M1_RGB(nc[0], nc[1], nc[2]);
-    return ux_mix(ux_mix(d, s, w * 100 / 127), nn, n * 100 / 127);
+    return m1_mix(m1_mix(d, s, w * 100 / 127), nn, n * 100 / 127);
 }
 
 /* the ink of the words: sepia by day, old paper by night; the sound's colour, warmed towards the ink */
@@ -320,8 +332,8 @@ static void room_ink(uint16_t *ink, uint16_t *acc, uint16_t *dim)
     const uint8_t *rgb = M1_PAD_RGB[m1.pad];
     uint16_t day = M1_RGB(0x2a, 0x1a, 0x10), ngt = M1_RGB(0xe6, 0xd6, 0xb2), pad = M1_RGB(rgb[0], rgb[1], rgb[2]);
     *ink = n > 64 ? ngt : day;
-    *acc = n > 64 ? ux_mix(pad, *ink, 70) : M1_RGB(0x5c, 0x1e, 0x08);   /* the value: a burnt orange by day */
-    *dim = ux_mix(room_col(RC_WALL, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
+    *acc = n > 64 ? m1_mix(pad, *ink, 70) : M1_RGB(0x5c, 0x1e, 0x08);   /* the value: a burnt orange by day */
+    *dim = m1_mix(room_col(RC_WALL, cat.winter < 0 ? 0 : cat.winter, n), *ink, 30);
 }
 
 /* the paper's grain: a few cells a shade darker, always the same ones */
@@ -342,10 +354,10 @@ static void scene_rows(uint32_t gy0, uint32_t gy1)
     for (i = 0; i < RC_N; i++) {                                             /* each colour, 4 steps darker to the edge */
         uint16_t c = room_col(i, w, n);
         for (j = 0; j < 4u; j++)
-            rc[i][j] = swap16(ux_mix(c, M1_RGB(0x20, 0x16, 0x10), (int32_t)j * 7));
+            rc[i][j] = swap16(m1_mix(c, M1_RGB(0x20, 0x16, 0x10), (int32_t)j * 7));
     }
     if (n > 64)
-        star = swap16(ux_mix(room_col(RC_WALL, w, n), M1_RGB(0xf0, 0xe2, 0xc0), (n - 64) * 100 / 63));
+        star = swap16(m1_mix(room_col(RC_WALL, w, n), M1_RGB(0xf0, 0xe2, 0xc0), (n - 64) * 100 / 63));
     flake = swap16(M1_RGB(0xf4, 0xee, 0xe0));
     room_ink(&ink, &acc, &dim);
     ink = swap16(ink);
@@ -551,12 +563,12 @@ static void m1_globe_row(uint32_t r)
 {
     char b[12], k[3] = {'K', (char)('2' + r), 0};
     const uint8_t *rgb = M1_PAD_RGB[m1.pad];
-    uint16_t acc = ux_mix(M1_RGB(rgb[0], rgb[1], rgb[2]), G1_INK, 25);
+    uint16_t acc = m1_mix(M1_RGB(rgb[0], rgb[1], rgb[2]), G1_INK, 25);
     int hot = m1.grow == r && fm1_ms - m1.grow_ms < 3000u;
     const char *v = g1_vname(r, b);
     g1_strip(38u + r * 24u, 24u, hot ? G1_HOT : G1_BG);
     pf_draw(cv_px, 240u, 24u, 10, 7, k, swap16(hot ? acc : G1_DIM));
-    pf_draw(cv_px, 240u, 24u, 42, 7, G1_NAME[r], swap16(hot ? G1_INK : ux_mix(G1_INK, G1_BG, 20)));
+    pf_draw(cv_px, 240u, 24u, 42, 7, G1_NAME[r], swap16(hot ? G1_INK : m1_mix(G1_INK, G1_BG, 20)));
     pf_draw(cv_px, 240u, 24u, 230 - pf_width(v), 7, v, swap16(hot ? acc : G1_INK));
     cv_blit(0, 38u + r * 24u);
 }
