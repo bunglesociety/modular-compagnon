@@ -243,10 +243,9 @@ static volatile uint8_t m1_la;            /* Modular One: CHORD, the A 440 to tu
  *   wow 0.55 Hz (+-0.3 %) and flutter 6.3 Hz (+-0.06 %): a 128-sample line read at a moving point (linear)
  *   saturation  the mix driven 1.6x into a soft third and a second, as a tape's, then back down
  *   the top  two one-poles, ~4.5 kHz and ~7 kHz: the air goes, the words stay
- *   hiss     a little filtered noise, about -58 dB
  * On / off fades over ~46 ms (the line keeps running, so the tape is up to speed when it comes in). */
 #define M1V_LEN 128u
-static int32_t m1v_buf[2][M1V_LEN], m1v_lp[2][2], m1v_nz = 0x5EED1234, m1v_h;
+static int32_t m1v_buf[2][M1V_LEN], m1v_lp[2][2];
 static uint32_t m1v_w, m1v_wow, m1v_flt, m1v_mix;          /* m1v_mix 0 .. 2048 */
 static inline int32_t m1v_warm(int32_t x)
 {
@@ -260,7 +259,7 @@ static inline int32_t m1v_warm(int32_t x)
 }
 static inline void m1_vint(int32_t *l, int32_t *r)
 {
-    int32_t in[2] = {*l, *r}, k, h;
+    int32_t in[2] = {*l, *r}, k;
     uint32_t pos, i, f;
     if (m1_vintage ? m1v_mix < 2048u : m1v_mix > 0u)
         m1v_mix += m1_vintage ? 1u : (uint32_t)-1;
@@ -274,9 +273,6 @@ static inline void m1_vint(int32_t *l, int32_t *r)
     }
     /* the read point, 60 samples back +- 38 (wow) +- 0.7 (flutter), Q8 */
     pos = (uint32_t)(60 * 256 + ((sine_i(m1v_wow) * 38) >> 7) + ((sine_i(m1v_flt) * 3) >> 9));
-    h = (int32_t)(noise32(&m1v_nz) >> 16) - 32768;          /* the hiss: noise, a one-pole, quiet */
-    m1v_h += (h - m1v_h) >> 2;
-    h = m1v_h >> 8;
     for (k = 0; k < 2; k++) {
         int32_t a, b, y;
         m1v_buf[k][m1v_w] = in[k];
@@ -285,7 +281,7 @@ static inline void m1_vint(int32_t *l, int32_t *r)
         a = m1v_buf[k][i];
         b = m1v_buf[k][(i - 1u) & (M1V_LEN - 1u)];
         y = a + (((b - a) >> 4) * (int32_t)f >> 4);
-        y = m1v_warm(y) + h;
+        y = m1v_warm(y);
         m1v_lp[k][0] += ((y - m1v_lp[k][0]) * 15) >> 5;       /* ~4.5 kHz */
         m1v_lp[k][1] += ((m1v_lp[k][0] - m1v_lp[k][1]) * 20) >> 5;   /* ~7 kHz */
         y = m1v_lp[k][1];

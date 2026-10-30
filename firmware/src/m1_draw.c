@@ -499,6 +499,11 @@ static void m1_globe_row(uint32_t r)
     pf_draw(cv_px, 240u, 24u, 10, 7, k, swap16(hot ? acc : G1_DIM));
     pf_draw(cv_px, 240u, 24u, 42, 7, G1_NAME[r], swap16(hot ? G1_INK : ux_mix(G1_INK, G1_BG, 20)));
     pf_draw(cv_px, 240u, 24u, 230 - pf_width(v), 7, v, swap16(hot ? acc : G1_INK));
+    if (r == G1_WARM) {                                                      /* SCREEN: the paper itself, a sample */
+        int32_t sx = 230 - pf_width(v) - 34;
+        pf_rect(cv_px, 240u, 24u, sx, 4, 26, 16, swap16(room_col(RC_WALL, 0, 0)));
+        pf_rect(cv_px, 240u, 24u, sx + 4, 8, 6, 4, swap16(room_col(RC_GRAIN, 0, 0)));
+    }
     cv_blit(0, 38u + r * 24u);
 }
 
