@@ -109,6 +109,20 @@ static const uint8_t LCD_SEQ[] = {
     0x00, 1, 120,
     0x3A, 1, 0x55,               /* COLMOD: RGB565 */
     0x36, 1, 0x00,               /* MADCTL: top-left origin, RGB order */
+#if BOARD_SMK37
+    /* the SMK-37's panel as it was tuned (docs: fm1-to-smk37 01-hardware, "the stock panel setup"): without its
+     * voltages and gamma the colours come out pale and blue (the warm paper shows light blue) */
+    0xB2, 5, 0x0C, 0x0C, 0x00, 0x33, 0x33,   /* PORCTRL */
+    0xB7, 1, 0x35,               /* GCTRL */
+    0xBB, 1, 0x32,               /* VCOMS */
+    0xC2, 1, 0x01,               /* VDVVRHEN */
+    0xC3, 1, 0x15,               /* VRHS */
+    0xC4, 1, 0x20,               /* VDVS */
+    0xC6, 1, 0x0F,               /* FRCTRL2: 60 Hz */
+    0xD0, 2, 0xA4, 0xA1,         /* PWCTRL1 */
+    0xE0, 14, 0xD0, 0x08, 0x0E, 0x09, 0x09, 0x05, 0x31, 0x33, 0x48, 0x17, 0x14, 0x15, 0x31, 0x34,   /* gamma + */
+    0xE1, 14, 0xD0, 0x08, 0x0E, 0x09, 0x09, 0x05, 0x31, 0x33, 0x48, 0x17, 0x14, 0x15, 0x31, 0x34,   /* gamma - */
+#endif
     0x21, 0,                     /* INVON: IPS panel */
     0x13, 0,                     /* NORON */
 };

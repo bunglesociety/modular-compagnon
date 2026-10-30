@@ -252,7 +252,7 @@ static const uint8_t STARS[18][2] = {
 /* the paper (warm as the pads' white: the panel shows it whiter than it is); the grass (Modular Town's GREEN2 GREEN GREEN3, tools/gen_city.py) and its flowers */
 enum { RC_WALL, RC_GRAIN, RC_TIP, RC_BLADE, RC_DEEP, RC_FPINK, RC_FYEL, RC_FWHITE, RC_N };
 /* day, snow (the day whitened a little, still warm), night */
-static const uint8_t ROOM_DAY[RC_N][3] = {{0xb0, 0x7a, 0x42}, {0xa4, 0x70, 0x3c}, {122, 150, 96}, {98, 128, 84},
+static const uint8_t ROOM_DAY[RC_N][3] = {{0xd8, 0xbe, 0x90}, {0xcc, 0xb0, 0x82}, {122, 150, 96}, {98, 128, 84},
                                           {78, 106, 70}, {246, 200, 206}, {236, 210, 120}, {230, 230, 220}};
 static const uint8_t ROOM_SNOW[RC_N][3] = {{0xdc, 0xc0, 0x98}, {0xd2, 0xb6, 0x8e}, {226, 228, 220}, {150, 168, 136},
                                            {112, 132, 100}, {240, 214, 218}, {236, 222, 170}, {240, 240, 234}};
