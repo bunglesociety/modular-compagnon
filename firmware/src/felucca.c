@@ -137,7 +137,6 @@
 #include "master.c"              /* the MASTER pot (#137: read before the audio starts) */
 #if MODULAR_ONE
 #include "m1_ui.c"              /* Modular One on the SMK-37: the controls */
-#include "m1_book.c"            /* .. the sketchbook in flash (the tape: m1_tape.c, in seq.c) */
 #include "m1_draw.c"            /* .. and the screen: the cat */
 #endif
 #include "main.c"

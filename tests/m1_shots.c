@@ -23,12 +23,10 @@ int main(int argc, char **argv)
     const char *root = argc > 1 ? argv[1] : "build/shots";
     uint32_t k;
     mkdir(root, 0755);
-    memset(host_fl, 0xFF, sizeof host_fl);
     host_tracks_init();
     fm1_ms = 1000;
     no_shots = 1;
     m1_init();
-    m1_boot();
     no_shots = 0;
     scene(root, "ouverture");                                              /* the opening, whole */
     run(5600);
@@ -52,6 +50,18 @@ int main(int argc, char **argv)
     scene(root, "folie");                                                  /* la folie */
     host_pad = 0; run(2600);
     cat_play(CAT_FOLIE); cat.quiet_since = fm1_ms; run(6000);
+    no_shots = 1; pet_pick(1); run(1800); no_shots = 0;
+    scene(root, "renard");                                                 /* the fox: a mouse in the grass */
+    cat_play(CAT_CHASSE); cat.quiet_since = fm1_ms; run(6500);
+    no_shots = 1; pet_pick(2); run(1800); no_shots = 0;
+    scene(root, "robot");                                                  /* the robot: his head spins, then love */
+    cat_play(CAT_QUEUE); cat.quiet_since = fm1_ms; run(3200);
+    cat_play(CAT_MLEM); cat.quiet_since = fm1_ms; run(3500);
+    no_shots = 1; pet_pick(3); run(1800); no_shots = 0;
+    scene(root, "poisson");                                                /* the fish: the screen is his aquarium */
+    cat_play(CAT_IDLE); cat.quiet_since = fm1_ms; run(3500);
+    cat_play(CAT_TERRITOIRE); cat.quiet_since = fm1_ms; run(4500);
+    pet_pick(0); no_shots = 1; run(1600); no_shots = 0;
     scene(root, "arp");                                                    /* ARP held: its mode, its speed */
     host_btn = 1u << 6; host_pressed = host_btn; run(300);
     host_enc[1] = 1; run(500); host_enc[1] = 1; run(700);

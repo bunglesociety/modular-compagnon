@@ -79,36 +79,17 @@ static void lcd_power(uint32_t s) { host_lcd_on = s != 0u; }
 static struct { uint8_t factory[16][32]; uint32_t user, filter; } favorites;
 #endif
 
+/* m1_init's clean start (ui.c, hal): as the firmware has them, or a stand-in */
+static int param_kept(uint32_t i)
+{
+    return i == P_LEVEL || i == P_PAN || i == P_MUTE || (i >= P_AMODE && i <= P_SGATE) ||
+           (i >= P_SLCR && i <= P_SLDEPTH) || i == P_CHRD || i == P_VOIC || i == P_SQNT;
+}
+static void track_defaults_steps(track_t *t) { (void)t; }
+static uint32_t host_dim = 9;
+static void fm1_led_dim_level(uint32_t lo) { host_dim = lo; }
 #include "../firmware/src/m1_ui.c"
 
-/* the sketchbook (m1_book.c) on a fake flash: AND-writes, 4 KiB erases */
-static uint8_t host_fl[SMP_USER_SIZE];
-static int flash_ok = 1;
-static uint32_t host_erases;
-#define fm1_xip_ptr(off) ((const uint8_t *)host_fl + ((off) - SMP_USER_BASE))
-static void fl_inval(uint32_t off, uint32_t n) { (void)off; (void)n; }
-static void audio_silence(void) {}
-static void fm1_wdt_feed(void) { if (demo_on) demo_block(CTL); }        /* (the audio goes on while it waits) */
-static int fl_erase4k(uint32_t off, uint32_t *took) { *took = 0; host_erases++; memset(host_fl + (off - SMP_USER_BASE), 0xFF, 0x1000); return 0; }
-static int fl_write(uint32_t off, const uint8_t *p, uint32_t n)
-{
-    uint32_t i;
-    for (i = 0; i < n; i++)
-        host_fl[off - SMP_USER_BASE + i] &= p[i];
-    return 0;
-}
-static uint32_t st_crc32(const void *p, uint32_t n)
-{
-    const uint8_t *b = p;
-    uint32_t c = 0xFFFFFFFFu, k;
-    while (n--) {
-        c ^= *b++;
-        for (k = 0; k < 8u; k++)
-            c = c >> 1 ^ (0xEDB88320u & -(c & 1u));
-    }
-    return ~c;
-}
-#include "../firmware/src/m1_book.c"
 #include "../firmware/src/m1_draw.c"
 
 /* ------------------------------------------------------------ the film */
@@ -138,9 +119,8 @@ static void run(uint32_t ms)
     while ((int32_t)(fm1_ms - end) < 0) {
         fm1_in.buttons = host_btn;
         m1_input();
-        m1_service();
         m1_draw();
-        {   /* the audio's events, block by block (the tape's player, the sketch clock) */
+        {   /* the audio's events, block by block */
             uint32_t b;
             for (b = 0; b < 15u * 44100u / 1000u / CTL; b++)
                 events_block(CTL);
@@ -187,9 +167,13 @@ int main(int argc, char **argv)
     dir = argc > 1 ? argv[1] : "build/m1_screen";
     host_tracks_init();
     fm1_ms = 1000;
-    memset(host_fl, 0xFF, sizeof host_fl);
+    trk[0].p[P_TRANS] = 5; trk[0].p[P_APROB] = 10; trk[0].p[P_MUTE] = 1; trk[0].p[P_SLCR] = 1;   /* a Felucca session */
+    song.g[G_SWING] = 50; song.g[G_RTYPE] = 2; song.octave = 2;
     m1_init();
-    m1_boot();
+    if (trk[0].p[P_TRANS] != TP[P_TRANS].def || trk[0].p[P_APROB] != TP[P_APROB].def || trk[0].p[P_MUTE] || trk[0].p[P_SLCR] != TP[P_SLCR].def ||
+        song.g[G_SWING] != GP[G_SWING].def || song.g[G_RTYPE] || song.octave || host_dim) {
+        printf("m1_screen: FAIL a Felucca session leaks into Modular Compagnon\n"); fails++;
+    }
     ux.mono = 1;                                                            /* Felucca's GREY style kept in the settings: */
     run(6000);                                                              /* the companion's screen stays in colour */
     {
@@ -258,8 +242,7 @@ int main(int argc, char **argv)
         if (!m1_la) { printf("m1_screen: FAIL CHORD: no A 440\n"); fails++; }
         host_pressed = 1u << 9; run(300);
         if (m1_la) { printf("m1_screen: FAIL CHORD again: the A 440 still on\n"); fails++; }
-        host_btn = 1u << M1_B_REC; host_pressed = host_btn; run(900); host_released = host_btn; host_btn = 0; run(300);
-        if (pl_count) { printf("m1_screen: FAIL REC kept a sketch\n"); fails++; }
+        host_btn = 1u << M1_B_REC; host_pressed = host_btn; run(900); host_released = host_btn; host_btn = 0; run(300);   /* (REC: nothing) */
         host_pad = 0; run(2600);
     }
     /* GLOBE: K2 .. K7, one setting each, saved; the cat back after */

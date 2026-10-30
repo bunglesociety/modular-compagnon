@@ -301,7 +301,9 @@ static void fm1_main(void)
         panel_setup();                        /* OCT- + OCT+ held at power-on */
         settings_save();
     }
+#if !MODULAR_ONE
     autosave_boot(boot_clean);                /* (1.2) the last session's music, under the splash */
+#endif                                        /* (Modular Compagnon starts clean: m1_init) */
     for (ms = 0; ms < 400u; ms += 10u) {      /* the splash; the pot followed (MIDI IN plays under it) */
         fm1_delay_ms(10);
         master_poll();
@@ -311,7 +313,6 @@ static void fm1_main(void)
     scrn.idle = fm1_ms;                        /* (MENU > SCREEN OFF: from here) */
 #if MODULAR_ONE
     m1_init();
-    m1_boot();                                 /* the sketches kept, for the tape */
 #endif
 
     for (;;) {
@@ -401,7 +402,6 @@ static void fm1_main(void)
         felucca_dbg.stage = 1;
 #if MODULAR_ONE
         m1_input();                                   /* Modular One: its own controls and screen (m1_ui.c, m1_draw.c) */
-        m1_service();                                 /* REC held: a sketch to keep (m1_book.c) */
         settings_poll();
         felucca_dbg.stage = 2;
         smk_wheels();

@@ -231,8 +231,25 @@ static int rec_on(const track_t *t) { return ((song.rec >> trk_index(t)) & 1u) &
 enum { AM_OFF, AM_UP, AM_DN, AM_UPDN, AM_RND, AM_ORD, AM_REPEAT, AM_DNUP, AM_UP8, AM_CONV, AM_DIVG, AM_PINKY,
        AM_THUMB, AM_WALK, AM_CHORD };
 
+/* Modular Compagnon: the arp's notes to MIDI OUT as it plays them (a DAW records the arpeggio, not the keys held:
+ * key_on sends no note-on while the ARP is on) */
+#if MODULAR_ONE
+static void arp_midi(const track_t *t, uint32_t note, uint32_t on)
+{
+    uint32_t mc = trk_midi_ch(trk_index(t));
+    if (note)
+        midi_out_event(on ? 0x09u | (0x90u | mc) << 8 | note << 16 | 100u << 24 : 0x08u | (0x80u | mc) << 8 | note << 16);
+}
+#else
+#define arp_midi(t, note, on) ((void)0)
+#endif
+
 static void arp_forget(track_t *t)               /* (its notes ended otherwise: trk_all_off) */
 {
+    uint32_t i;
+    arp_midi(t, t->arp_note, 0);
+    for (i = 0; i < 3u; i++)
+        arp_midi(t, t->arp_ch[i], 0);
     t->arp_note = t->arp_ch[0] = t->arp_ch[1] = t->arp_ch[2] = 0;
 }
 
@@ -246,6 +263,7 @@ static __attribute__((noinline)) void arp_chord_off(track_t *t, int rec)   /* th
             if (rec)
                 rec_release(t, t->arp_ch[i]);
             trk_note_off(t, t->arp_ch[i]);
+            arp_midi(t, t->arp_ch[i], 0);
             t->arp_ch[i] = 0;
         }
 }
@@ -266,6 +284,7 @@ static __attribute__((noinline)) void arp_chord(track_t *t, const uint32_t *list
         if (rec_on(t))
             rec_note(t, nt, 100);
         trk_note_on(t, nt, 100);
+        arp_midi(t, nt, 1);
     }
 }
 
@@ -274,6 +293,7 @@ static void arp_silence(track_t *t)              /* the sounding arp note(s) end
     if (t->arp_ch[0] | t->arp_ch[1] | t->arp_ch[2])
         arp_chord_off(t, 0);
     trk_note_off(t, t->arp_note);
+    arp_midi(t, t->arp_note, 0);
     t->arp_note = 0;
 }
 
@@ -282,6 +302,7 @@ static void arp_off(track_t *t)                  /* the sounding arp note(s) end
     if (t->arp_ch[0] | t->arp_ch[1] | t->arp_ch[2])
         arp_chord_off(t, rec_on(t));
     trk_note_off(t, t->arp_note);
+    arp_midi(t, t->arp_note, 0);
     if (rec_on(t))
         rec_release(t, t->arp_note);
     t->arp_note = 0;
@@ -421,6 +442,7 @@ static __attribute__((noinline)) void arp_fire(track_t *t, uint32_t period)
         if (rec_on(t))
             rec_note(t, t->arp_note, 100);           /* recording: what the arp plays */
         trk_note_on(t, t->arp_note, 100);
+        arp_midi(t, t->arp_note, 1);
     }
 }
 
@@ -619,16 +641,9 @@ static __attribute__((noinline)) void cin_keep(track_t *t, uint32_t note, uint32
     cin_up[i] &= (uint8_t)~(1u << k);
 }
 
-#if 0                                               /* (Modular Compagnon: no tape recorder) */
-static void sk_put(uint32_t note, uint32_t vel);    /* the sketchbook (m1_tape.c) */
-#define M1_SK_PUT(n, v) sk_put(n, v)
-#else
-#define M1_SK_PUT(n, v) ((void)0)
-#endif
 static void input_on(track_t *t, uint32_t note, uint32_t vel)
 {
     last_note = (uint8_t)note;
-    M1_SK_PUT(note, vel ? vel : 1u);                /* (Modular One: the sketchbook hears everything) */
     if (cin_left)
         cin_keep(t, note, vel);
     if (rec_on(t) && !t->p[P_AMODE])               /* (ARP on: arp_tick records its notes) */
@@ -645,7 +660,6 @@ static void input_off(track_t *t, uint32_t note)
 {
     if (midi_note_held(t, note))
         return;
-    M1_SK_PUT(note, 0);
     if (cin_left) {                                 /* a kept note let go before step 1: recorded, then let go */
         uint32_t i = trk_index(t), k;
         for (k = 0; k < cin_n[i]; k++)
@@ -736,7 +750,8 @@ static void key_on(uint32_t k, track_t *t)
         if (midi_local_held(t, x))
             continue;
         input_on(t, x, vel);
-        midi_out_event(0x09u | (0x90u | mc) << 8 | x << 16 | vel << 24);
+        if (!(MODULAR_ONE && t->p[P_AMODE]))           /* (Modular Compagnon: the arp's notes go out instead) */
+            midi_out_event(0x09u | (0x90u | mc) << 8 | x << 16 | vel << 24);
     }
     in_key = 0;
     kb_chn[k] = (uint8_t)n;
@@ -809,7 +824,8 @@ static void ext_keys_block(void)
         ext_trk[k] = (uint8_t)sel;
         mc = trk_midi_ch(sel);
         input_on(&trk[sel], n, v);
-        midi_out_event(0x09u | (0x90u | mc) << 8 | n << 16 | v << 24);
+        if (!(MODULAR_ONE && trk[sel].p[P_AMODE]))
+            midi_out_event(0x09u | (0x90u | mc) << 8 | n << 16 | v << 24);
     }
 }
 #endif
@@ -1393,16 +1409,12 @@ static void smk_wheels_block(void)
 #endif
 
 #if MODULAR_ONE
-#include "m1_tape.c"
-#endif
-#if MODULAR_ONE
 static uint32_t m1_rt_ms;                         /* the last MIDI clock heard (Modular Compagnon follows it) */
 #endif
 static void events_block(uint32_t n)
 {
     uint32_t i, pr, seq_n = n;
 #if MODULAR_ONE
-    sk_clock += n;
     if (song.g[G_CLOCK] && fm1_ms - m1_rt_ms > 1500u)
         song.g[G_CLOCK] = 0;                        /* the DAW's clock gone: back to our own tempo */
 #endif
@@ -1482,9 +1494,6 @@ static void events_block(uint32_t n)
     smk_wheels_block();
 #endif
     keyboard_block();
-#if MODULAR_ONE
-    demo_block(n);                                    /* the tape's player */
-#endif
     while (mi_r != mi_w) {                            /* USB-MIDI (and TRS) in */
         uint32_t at = mi_r % MQ, pkt = midi_in_q[at], status = (pkt >> 8) & 0xFFu;
         uint32_t st = status & 0xF0u, ch = status & 0x0Fu;

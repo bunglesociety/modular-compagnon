@@ -199,7 +199,8 @@ OUT=build/host
 mkdir -p "$OUT"
 CC="${CC:-cc} -O1 -Wall -Wno-unused-function"
 fail=0
-run() { echo "== $1"; shift; "$@" || fail=1; }
+run() { echo "== $1"; n="$1"; shift; "$@" || { fail=1; echo "!! FAILED: $n"; failed="$failed
+  $n"; }; }
 
 $CC -o "$OUT/storage_test" tests/storage_test.c
 run "flash storage (A/B, torn writes)" "$OUT/storage_test"
@@ -259,10 +260,10 @@ run "SMK-37 Pro flash map: allow-lists never reach the head, BTIF/USRTRIM, USR, 
 $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_owner_test" tests/smk_owner_test.c
 run "SMK-37 Pro store owner tag: another firmware's store cleared, ours kept, nothing else written" "$OUT/smk_owner_test"
 # Modular Compagnon (Modular One on the SMK-37): the screen (m1_ui.c, m1_draw.c: the cat) under a script of hands; pictures in build/m1_screen
-python3 tools/gen_cat.py -o build/gen/cat_sprites.h >/dev/null
+python3 tools/gen_pets.py -o build/gen/cat_sprites.h >/dev/null
 $CC -O1 -w -DMODULAR_ONE=1 -DFELUCCA_SLICE=0 -Ibuild/gen -Ifirmware/src -Itests -o "$OUT/m1_screen" tests/m1_screen.c -lm
 mkdir -p build/m1_screen && rm -f build/m1_screen/*.ppm
-run "Modular Compagnon screen: every clip of the cat ends on the grid, he looks, listens, sleeps at night, wakes" "$OUT/m1_screen" build/m1_screen
+run "Modular Compagnon screen: a clean start, every companion's clips on the grid, they look, listen, sleep at night, wake; the ARP, the A 440; colour under GREY" "$OUT/m1_screen" build/m1_screen
 python3 tools/fm1pkg_make.py --board smk37 build/felucca.bin build/loader/ota.bin "$OUT/smk_new.fwsc" >/dev/null
 python3 tools/fm1pkg_make.py --board smk37 "$OUT/old_app.bin" build/loader/ota.bin "$OUT/smk_old.fwsc" >/dev/null
 run "SMK-37 Pro package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table" python3 tests/smk_pkg_test.py "$OUT/smk_new.fwsc"
@@ -541,4 +542,4 @@ else
         node web/emu/emu_test.mjs build/emu/felucca.wasm "$OUT/emu_native.f32"
 fi
 
-[ $fail -eq 0 ] && echo "ALL HOST TESTS PASSED" || { echo "HOST TESTS FAILED"; exit 1; }
+[ $fail -eq 0 ] && echo "ALL HOST TESTS PASSED" || { printf "HOST TESTS FAILED:$failed\n"; exit 1; }

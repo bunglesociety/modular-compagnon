@@ -9,8 +9,9 @@ import sys
 from pathlib import Path
 from PIL import Image
 
-GIFS = {"ouverture": None, "toilette": None, "joue": None, "nuit": (0, 260), "neige": None, "folie": (60, 216)}
-STILLS = {"reglage": -1, "magneto": -6, "globe": 20}
+GIFS = {"ouverture": None, "toilette": None, "joue": None, "nuit": (0, 260), "neige": None, "folie": (60, 216),
+        "renard": None, "robot": None, "poisson": None}
+STILLS = {"reglage": -1, "arp": 30, "globe": 20}
 
 
 def frames(d):

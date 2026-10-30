@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 IMG = ROOT / "web" / "compagnon" / "img"
 FONT = ROOT / "assets" / "fonts" / "ui" / "silkscreen-latin-400-normal.woff"
 
-PAPER, GRAIN, INK, DIM = (220, 202, 164), (210, 190, 151), (74, 56, 40), (125, 104, 80)
+PAPER, GRAIN, INK, DIM = (222, 200, 160), (212, 188, 148), (60, 42, 28), (125, 104, 80)
 BODY, BODY2, ORANGE, CREAM, KEYW, KEYB = (92, 86, 82), (78, 72, 68), (204, 98, 54), (240, 232, 214), (244, 238, 226), (204, 98, 54)
 LBL = (240, 226, 196)
 
@@ -22,23 +22,25 @@ T = {
                pitch="PITCH", pitch2="(OFF)", mod="MOD", mod2="FILTRE",
                knobs=["VOLUME", "CUTOFF", "RESO", "ATTAQUE", "DECAY", "SUSTAIN", "RELEASE", "DETUNE"],
                faders=["JOUR/NUIT", "FM / HIVER", "TEMPS", "ECHO"],
-               small=["ONDE 1", "ONDE 2", "<", ">", "OCT-", "OCT+"],
-               top=["ARP", "REPEAT", "GAMME", "ACCORD", "GLOBE", ""], bot=["", "", "VINTAGE", "", "PLAY", "REC"],
+               small=["ONDE 1", "ONDE 2", "", "", "OCT-", "OCT+"],
+               top=["ARP", "", "", "LA 440", "GLOBE", ""], bot=["", "", "VINTAGE", "", "", ""],
                keys="37 TOUCHES : LES NOTES",
-               notes=["PADS : LES 16 SONS  ·  FX : LE SON VINTAGE (BANDE, CHALEUR)", "REC MAINTENU : GARDE LA DERNIERE PHRASE JOUEE  ·  PLAY : LA REJOUER (ET STOP)",
-                      "< >  : LE CROQUIS PRECEDENT / SUIVANT  ·  < ET > MAINTENUS : EFFACER",
-                      "GLOBE : LES REGLAGES, K2 A K7 = CANAL MIDI, VELOCITE, ACCORDAGE, PADS, VEILLE, LE CHAT",
+               notes=["PADS : LES 16 SONS  ·  FX : LE SON VINTAGE (BANDE, CHALEUR)  ·  CHORD : UN LA 440 POUR S'ACCORDER",
+                      "ARP : UN APPUI = ON / OFF  ·  MAINTENU : K2 LE MODE, K3 LA VITESSE, K4 LE TEMPO (SUIT LE DAW TOUT SEUL)",
+                      "GLOBE : LES REGLAGES (K2 A K8) : CANAL MIDI, VELOCITE, ACCORDAGE, PADS, VEILLE, HUMEUR, COMPAGNON",
+                      "COMPAGNONS : LE CHAT, LE RENARD, LE ROBOT, LE POISSON (TOUT L'ECRAN EST SON AQUARIUM)",
                       "ONDE 1 / 2 : LA TOUCHE S'ALLUME SUR LES SONS QUI ONT DES ONDES"]),
     "en": dict(file="controls-en.png", title="MODULAR COMPAGNON  ·  THE CONTROLS",
                pitch="PITCH", pitch2="(OFF)", mod="MOD", mod2="FILTER",
                knobs=["VOLUME", "CUTOFF", "RESO", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DETUNE"],
                faders=["DAY/NIGHT", "FM / WINTER", "TIME", "ECHO"],
-               small=["WAVE 1", "WAVE 2", "<", ">", "OCT-", "OCT+"],
-               top=["ARP", "REPEAT", "SCALE", "CHORD", "GLOBE", ""], bot=["", "", "VINTAGE", "", "PLAY", "REC"],
+               small=["WAVE 1", "WAVE 2", "", "", "OCT-", "OCT+"],
+               top=["ARP", "", "", "A 440", "GLOBE", ""], bot=["", "", "VINTAGE", "", "", ""],
                keys="37 KEYS: THE NOTES",
-               notes=["PADS: THE 16 SOUNDS  ·  FX: THE VINTAGE SOUND (TAPE, WARMTH)", "REC HELD: KEEPS THE LAST PHRASE PLAYED  ·  PLAY: PLAY IT BACK (AND STOP)",
-                      "< >: PREVIOUS / NEXT SKETCH  ·  < AND > HELD: ERASE",
-                      "GLOBE: THE SETTINGS, K2 TO K7 = MIDI CHANNEL, VELOCITY, TUNING, PADS, SLEEP, THE CAT",
+               notes=["PADS: THE 16 SOUNDS  ·  FX: THE VINTAGE SOUND (TAPE, WARMTH)  ·  CHORD: AN A 440 TO TUNE TO",
+                      "ARP: A TAP = ON / OFF  ·  HELD: K2 ITS MODE, K3 ITS SPEED, K4 THE TEMPO (FOLLOWS A DAW BY ITSELF)",
+                      "GLOBE: THE SETTINGS (K2 TO K8): MIDI CHANNEL, VELOCITY, TUNING, PADS, SLEEP, MOOD, COMPANION",
+                      "COMPANIONS: THE CAT, THE FOX, THE ROBOT, THE FISH (THE WHOLE SCREEN IS HIS AQUARIUM)",
                       "WAVE 1 / 2: THE BUTTON LIGHTS UP ON THE SOUNDS THAT HAVE WAVES"]),
 }
 PADS = ["MODULAR", "JUNO", "SUPERSAW", "PWM", "TAPE", "FM", "SOUFFLE", "CREPUSCULE",
@@ -92,8 +94,9 @@ def draw(lang):
     # the six buttons under the screen
     for i, s in enumerate(t["small"]):
         cx, cy = 318 + (i % 2) * 96, 395 + (i // 2) * 52
-        d.rounded_rectangle([k(cx - 44), k(cy - 20), k(cx + 44), k(cy + 20)], k(6), fill=ORANGE)
-        text(d, (k(cx), k(cy)), s, f12 if len(s) > 4 else f16, CREAM)
+        d.rounded_rectangle([k(cx - 44), k(cy - 20), k(cx + 44), k(cy + 20)], k(6), fill=ORANGE if s else (130, 96, 80))
+        if s:
+            text(d, (k(cx), k(cy)), s, f12 if len(s) > 4 else f16, CREAM)
     # knobs
     for i, s in enumerate(t["knobs"]):
         cx = 530 + i * 82
@@ -138,7 +141,7 @@ def draw(lang):
     # the notes below
     y = 735
     for i, s in enumerate(t["notes"]):
-        text(d, (k(90), k(y + i * 30)), "·  " + s, f16, INK, anchor="lm")
+        text(d, (k(90), k(y + i * 30)), "·  " + s, fit(d, "·  " + s, k(1440), (k(16), k(14), k(12))), INK, anchor="lm")
     return im.resize((W, H), Image.LANCZOS)
 
 

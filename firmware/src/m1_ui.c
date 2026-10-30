@@ -14,9 +14,7 @@
  *                kept with the settings; a DAW's MIDI clock is followed by itself, seq.c. CHORD: an A 440 to tune
  *                to, on / off. SCALE, NOTE REPEAT and the tape: nothing)
  *                1/16 repeat while held; FX the vintage (fx.c); GLOBE the settings: one knob, one setting (below)
- *   the tape     PLAY plays the sketches kept (and stops); REC held 0.6 s keeps the last phrase played (again at once:
- *                one phrase further back); < > the previous / next sketch (stopped: where PLAY starts); < and > held
- *                together 1.5 s erases the sketch shown (m1_tape.c, m1_book.c)
+ *   PLAY, REC, < >  nothing (Modular Compagnon has no tape recorder)
  *   37 keys      their notes (seq.c: the 27 middle keys, the 10 outer ones) on part 1
  * The screen: m1_draw.c. Only part 1 plays; the other three are silent. */
 
@@ -33,7 +31,7 @@ static const uint8_t M1_K_PARAM[M1_NK] = {P_E3, P_E4, P_ATK, P_DEC, P_SUS, P_REL
 static const char *const M1_K_NAME[M1_NK] = {"CUTOFF", "RESO", "ATTACK", "DECAY", "SUSTAIN", "RELEASE", "DETUNE"};
 
 /* what the screen shows: the last control touched (m1_draw.c) */
-enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL, M1T_TAPE, M1T_HOLD };
+enum { M1T_NONE, M1T_KNOB, M1T_FADER, M1T_WAVE, M1T_BTN, M1T_PAD, M1T_VOL, M1T_HOLD };
 enum { M1_B_LEFT = 2, M1_B_RIGHT = 3, M1_B_PLAY = 16, M1_B_REC = 17 };
 static struct {
     uint8_t pad;             /* the sound's pad (hardware number) */
@@ -47,9 +45,6 @@ static struct {
     uint8_t dirty;
     uint32_t active_ms;      /* the last hand on anything (the screen sleeps after MENU's time) */
     uint8_t grow;            /* GLOBE: the setting turned last (0xFF none) */
-    char msg[24];            /* the tape's words (m1_say), shown in the band 2.5 s */
-    uint32_t msg_ms, rec_ms, del_ms;   /* REC pressed; < and > both held since */
-    uint8_t rec_done, del_done;
     uint32_t grow_ms;
     uint8_t hold, hold_used; /* ARP / SCALE / CHORD held (0xFF none); a knob turned meanwhile */
     const char *hlab;        /* M1T_HOLD: the words */
@@ -146,15 +141,6 @@ static void m1_touch(uint32_t kind, uint32_t what, int32_t v)
     m1.what = (uint8_t)what;
     m1.value = (int16_t)v;
     m1.t_ms = m1.active_ms = fm1_ms;
-    m1.dirty = 1;
-}
-
-static void m1_say(const char *s)
-{
-    str_cpy(m1.msg, s, sizeof m1.msg);
-    m1.msg_ms = m1.active_ms = fm1_ms;
-    m1.touched = M1T_TAPE;
-    m1.t_ms = fm1_ms;
     m1.dirty = 1;
 }
 
@@ -257,7 +243,20 @@ static void m1_modwheel(void)
 
 static void m1_init(void)
 {
-    uint32_t k;
+    uint32_t k, i;
+    /* the same on every SMK-37: nothing of a Felucca session (no autosave restored, main.c) nor of its settings
+     * that are not Modular Compagnon's: the globals and every part's own values (those a preset keeps: level, pan,
+     * mute, arp, scale, transpose, slicer, chord keys) at their defaults, no steps (a DAW's Start plays nothing) */
+    for (i = 0; i < G_COUNT; i++)
+        song.g[i] = GP[i].def;
+    for (k = 0; k < NTRK; k++) {
+        for (i = 0; i < P_E0; i++)
+            if (param_kept(i))
+                trk[k].p[i] = TP[i].def;
+        track_defaults_steps(&trk[k]);
+    }
+    song.octave = 0;
+    fm1_led_dim_level(0);                                                    /* (the buttons' glow: Felucca's default) */
     for (k = 1; k < NTRK; k++)                                               /* parts 2..4 silent */
         trk[k].p[P_LEVEL] = 0;
     song.sel = 0;

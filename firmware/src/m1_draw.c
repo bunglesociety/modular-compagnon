@@ -168,7 +168,7 @@ static void cat_frame(uint32_t fi, int32_t dx)
 /* ------------------------------------------------------------ the floor's words */
 static const char *const M1_F_NAME[4] = {"DAY/NIGHT", "FM", "TIME", "ECHO"};
 static const char *const M1_B_NAME[18] = {"WAVE 1", "WAVE 2", "", "", "OCTAVE", "OCTAVE", "ARP", "REPEAT", "SCALE",
-                                          "CHORD", "SETTINGS", "", "", "", "VINTAGE", "", "", ""};   /* (the tape's: M1T_TAPE) */
+                                          "CHORD", "SETTINGS", "", "", "", "VINTAGE", "", "", ""};
 static struct {
     char lab[20], val[20], head[24];
     const char *snd;
@@ -189,13 +189,6 @@ static uint32_t m1_hash(uint32_t h, const char *t)
     while (*t)
         h = (h ^ (uint8_t)*t++) * 16777619u;
     return h * 16777619u;
-}
-
-/* the piece the tape shows: playing, else where PLAY starts */
-static const char *m1_piece(void)
-{
-    uint32_t k = demo_on ? pl_idx : pl_start;
-    return pl_count ? pl_item[k % pl_count].name : "";
 }
 
 /* what the floor says now; 1 = it changed */
@@ -224,14 +217,6 @@ static int m1_caption(void)
             str_cpy(cap.lab, m1.what == 1u ? "WAVE 1" : "WAVE 2", sizeof cap.lab);
             str_cpy(cap.val, m1.value < 22 ? "SAW" : m1.value < 54 ? "MIX" : m1.value < 96 ? "TRIANGLE" : "SQUARE",
                     sizeof cap.val);
-            break;
-        case M1T_TAPE:
-            if (fm1_ms - m1.msg_ms < 2500u && m1.msg[0]) {                   /* kept, erased, full, ...: the words alone */
-                str_cpy(cap.lab, m1.msg, sizeof cap.lab);
-            } else if (pl_count) {
-                str_cpy(cap.lab, demo_on ? "PLAYING" : "TAPE", sizeof cap.lab);
-                str_cpy(cap.val, m1_piece(), sizeof cap.val);
-            }
             break;
         default:
             str_cpy(cap.lab, m1.what < 18u ? M1_B_NAME[m1.what] : "", sizeof cap.lab);
@@ -455,7 +440,7 @@ static int cat_night(void) { return cat.night > 80; }   /* (fader 1 in its lowes
 static void cat_think(void)
 {
     uint32_t now = fm1_ms, c = cat.clip;
-    int playing = (m1.notes_ms && now - m1.notes_ms < 1200u) || demo_on;   /* (the tape too: he listens) */
+    int playing = m1.notes_ms && now - m1.notes_ms < 1200u;
     int touched = m1.touched != M1T_NONE && now - m1.t_ms < 1500u;
     if (playing || touched)
         cat.quiet_since = now;
