@@ -27,7 +27,7 @@ def product_of(raw):
 
 def page(meta, hero_src, map_src):
     html = (WEB / "compagnon" / "install.html").read_text(encoding="utf-8")
-    lib = "\n".join(strip_module((WEB / f).read_text(encoding="utf-8")) for f in ("fm1pkg.js", "fm1ota.js"))
+    lib = "\n".join(strip_module((WEB / f).read_text(encoding="utf-8")) for f in ("fm1pkg.js", "fm1ota.js", "fm1probe.js"))
     for mark, val in (("/*LIB*/", lib), ("/*META*/", json.dumps(meta)), ("/*HERO*/", hero_src), ("/*MAP*/", json.dumps(map_src))):
         if html.count(mark) != 1:
             raise SystemExit(f"install.html must contain {mark} once")
@@ -49,7 +49,7 @@ def main(pkg, out, version="beta"):
     img = WEB / "compagnon" / "img"
     maps = {l: "data:image/png;base64," + base64.b64encode((img / f).read_bytes()).decode()
             for l, f in (("fr", "commandes-fr.png"), ("en", "controls-en.png"))}
-    html = page({"version": version, "product": product, "local": 1, "b64": base64.b64encode(raw).decode()}, hero, maps)
+    html = page({"version": version, "product": product, "family": "compagnon", "name": "Modular Compagnon", "local": 1, "b64": base64.b64encode(raw).decode()}, hero, maps)
     Path(out).write_text(html, encoding="utf-8")
     print(f"installer: {out} ({len(html)} B, {product})")
 

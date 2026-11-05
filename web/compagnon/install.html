@@ -55,6 +55,7 @@
   #status { margin-top: 12px; min-height: 1.6em; font-weight: 600; }
   #status.bad { color: var(--warm); }
   #who { margin: 10px 0 0; color: var(--dim); }
+  #who.bad { color: var(--warm); font-weight: 600; }
   details { margin-top: 10px; font-size: 12px; color: var(--dim); }
   details.back summary { font-family: "Silkscreen", monospace; font-size: 14px; color: var(--ink); cursor: pointer; }
   pre { white-space: pre-wrap; font-size: 11.5px; margin: 6px 0 0; max-height: 180px; overflow: auto; }
@@ -162,6 +163,16 @@ const TEXT = {
     stockBad: "Ce fichier n'est pas le SMK-37_Elite_016.fwsc officiel intact : il ne sera pas installé.",
     stockConfirm: "Remettre le firmware d'origine (SMK-37 Elite 016) ? Modular Compagnon et ses réglages ne seront plus utilisables.",
     confirm: "Installer Modular Compagnon sur le SMK-37 Elite ? Les presets et réglages du firmware d'origine seront perdus.",
+    onDev: "Sur ton SMK-37 Elite : ",
+    onOther: "L'appareil branché : ",
+    v_ota: "Il est en mode mise à jour : Installer finit l'écriture.",
+    v_same: "C'est déjà cette version ({v}). Tu peux la réinstaller.",
+    v_update: "Installer le met à jour en {name} {v}.",
+    v_older: "Une version plus récente est installée. Installer {name} {v} revient en arrière.",
+    v_replace: "Installer {name} {v} le remplacera.",
+    v_fresh: "Installer {name} {v} le remplacera (les presets du firmware d'origine seront perdus).",
+    v_otherModel: "Ce n'est pas un SMK-37 Elite : ce firmware ne peut pas aller dessus, rien ne sera écrit.",
+    checking: "Lecture de l'appareil…",
     based: "Basé sur", license: "Logiciel libre GPL-3.0, sans garantie. Code source :", notmvave: "Modular Compagnon n'est ni fait ni soutenu par M-VAVE ou Hügelton Instruments.",
     nomidi: "Ce navigateur ne peut pas le faire. Ouvre la page dans Chrome ou Edge.", loadfail: "Impossible de charger : ",
     ready: "Prêt : Modular Compagnon ", start: "Le clavier répond, on commence", verify: "Vérification", loader: "Passage en mode mise à jour",
@@ -208,6 +219,16 @@ const TEXT = {
     stockBad: "This is not the unmodified official SMK-37_Elite_016.fwsc: it will not be installed.",
     stockConfirm: "Put the original firmware (SMK-37 Elite 016) back? Modular Compagnon and its settings will no longer be usable.",
     confirm: "Install Modular Compagnon on the SMK-37 Elite? The original firmware's presets and settings will be lost.",
+    onDev: "On your SMK-37 Elite: ",
+    onOther: "The connected device: ",
+    v_ota: "It is in update mode: Install finishes the writing.",
+    v_same: "This version is already installed ({v}). You can install it again.",
+    v_update: "Install updates it to {name} {v}.",
+    v_older: "A newer version is installed. Installing {name} {v} goes back.",
+    v_replace: "Installing {name} {v} replaces it.",
+    v_fresh: "Installing {name} {v} replaces it (the original firmware's presets will be lost).",
+    v_otherModel: "Not an SMK-37 Elite: this firmware cannot go on it, nothing will be written.",
+    checking: "Reading the device…",
     based: "Based on", license: "Free software, GPL-3.0, no warranty. Source:", notmvave: "Modular Compagnon is not made or supported by M-VAVE or Hügelton Instruments.",
     nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
     ready: "Ready: Modular Compagnon ", start: "The keyboard answers, starting", verify: "Verifying", loader: "Switching to update mode",
@@ -239,7 +260,7 @@ function applyLang() {
   const map = document.getElementById("map"); map.src = MAP[lang] || MAP.en; map.alt = t("mapAlt");
   document.querySelectorAll("[data-lang]").forEach((a) => a.classList.toggle("on", a.dataset.lang === lang));
   if (lastKey) sayK(lastKey, lastArg, lastBad);
-  if (whoKey) $("who").textContent = whoId + t(whoKey);
+  if (typeof sayDev === "function") sayDev();
 }
 document.querySelectorAll("[data-lang]").forEach((a) => a.addEventListener("click", () => { lang = a.dataset.lang; try { localStorage.setItem("mclang", lang); } catch (e) {} applyLang(); }));
 const sayK = (k, arg = "", bad = false) => { lastKey = k; lastArg = arg; lastBad = bad; $("status").textContent = t(k) + arg; $("status").className = bad ? "bad" : ""; };
@@ -279,19 +300,25 @@ $("check").addEventListener("click", async () => {
   const m = await midi();
   if (!m) return;
   lock(true);
-  try {
-    const dev = await new Updater(m, log).find(null);
-    if (!dev) { whoKey = null; $("who").textContent = t("notfound"); }
-    else {
-      dev.link.close();
-      whoId = dev.id.text;
-      whoKey = /^ota-/i.test(dev.id.model) ? "whoOta" : whoId === meta.product ? "whoMine" : whoId === STOCK_PRODUCT ? "whoStock"
-             : sameModel(dev.id.model, meta.product.split("_")[0]) ? "whoElite" : "whoOther";
-      $("who").textContent = whoId + t(whoKey);
-    }
-  } catch (e) { $("who").textContent = t("error") + e.message; }
+  try { await readDev(m); } catch (e) { $("who").textContent = t("error") + e.message; }
   lock(false);
 });
+var found = null;                                            /* the last reading of the device (fm1probe.js) */
+const vText = (v) => t("v_" + v.key).replace("{name}", meta.name).replace("{v}", meta.version);
+function sayDev() {
+  if (!found) return;
+  $("who").textContent = found.dev ? t(found.v.ok ? "onDev" : "onOther") + devLabel(found.dev, lang) + ". " + vText(found.v) : t("notfound");
+  $("who").className = found.v && !found.v.ok ? "bad" : "";
+}
+async function readDev(m) {
+  $("who").textContent = t("checking");
+  $("who").className = "";
+  const dev = await probe(new Updater(m, log));
+  found = { dev, v: dev ? verdict(dev, meta) : null };
+  if (dev) log(`device: ${dev.id.text} / ${dev.info ?? "(no INFO)"} -> ${dev.family} ${dev.version}: ${found.v.key}`);
+  sayDev();
+  return found;
+}
 
 async function run(img, product, doneKey) {
   const m = await midi();
@@ -324,7 +351,18 @@ async function run(img, product, doneKey) {
   lock(false);
 }
 
-$("go").addEventListener("click", () => { if (!busy && image && confirm(t("confirm"))) run(image, meta.product, "done"); });
+$("go").addEventListener("click", async () => {      /* first what is on it: may it go there? */
+  if (busy || !image) return;
+  const m = await midi();
+  if (!m) return;
+  lock(true);
+  let f = null;
+  try { f = await readDev(m); } catch (e) { $("who").textContent = t("error") + e.message; }
+  lock(false);
+  if (!f || !f.dev) { sayK("notfound", "", true); return; }
+  if (!f.v.ok) { sayK("model", "", true); return; }
+  if (confirm(t("onDev") + devLabel(f.dev, lang) + ".\n" + vText(f.v) + "\n\n" + t("confirm"))) run(image, meta.product, "done");
+});
 
 $("stock-file").addEventListener("change", async () => {
   stock = null; lock(false);

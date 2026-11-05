@@ -5,7 +5,7 @@
 
   index.html                              the home: web/compagnon/block.html (the same block as the bunglesociety.com
                                           page) in a page of its own, the pictures and links made relative
-  install/index.html                      web/compagnon/install.html with fm1pkg.js, fm1ota.js and the metadata
+  install/index.html                      web/compagnon/install.html with fm1pkg.js, fm1ota.js, fm1probe.js and the metadata
   img/                                    web/compagnon/img (tools/make_compagnon_img.py)
   firmware/modular-compagnon-VER.fwsc     the package (+ LICENSE, LICENSING.md, LICENSES/: the package holds three
                                           JieLi SDK files under Apache-2.0)
@@ -64,7 +64,8 @@ def main(pkg, version, out):
     for old in fw.glob("*.fwsc"):                    # one package: the current one
         old.unlink()
     shutil.copy(pkg, fw / name)
-    (inst / "index.html").write_text(page({"version": version, "product": product, "pkg": "../firmware/" + name},
+    (inst / "index.html").write_text(page({"version": version, "product": product, "family": "compagnon", "name": "Modular Compagnon",
+                                           "pkg": "../firmware/" + name},
                                           "../img/joue.gif",
                                           {"fr": "../img/commandes-fr.png", "en": "../img/controls-en.png"}),
                                      encoding="utf-8")
