@@ -425,6 +425,8 @@ def main():
             raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z, X.Y.Z.W or X.Y-suffix, one digit each")
         PRODUCT = BOARD_PREFIX[BOARD] + m[1] + m[2]
         VERSION = "v" + a.release.lower()      # e.g. v1.0, v1.1-rc1
+        if BOARD == "smk37":               # Modular Compagnon: INFO for the install page (fm1probe.js), "FELUCCA MC 1.1"
+            VERSION = "MC " + a.release.upper()
         name = f"{stem}-{a.release}.fwsc"
     if not (FW / "engines" / "src" / "felucca_engine.h").exists():
         raise SystemExit("firmware/engines is empty: the Felucca-Engines submodule "

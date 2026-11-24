@@ -57,6 +57,9 @@ void fm1_timer5_irq(void)
     if (owed & 2u)
         uart_midi_poll();
 #endif
+#if FELUCCA_TRS_OUT
+    trs_out_poll();                             /* (every tick: a byte is 320 us) */
+#endif
     owed = 0;
 }
 extern void isr_timer5(void);
@@ -291,6 +294,9 @@ static void fm1_main(void)
     usb_start();
 #if FELUCCA_UART
     uart_midi_init();
+#endif
+#if FELUCCA_TRS_OUT
+    trs_out_init();
 #endif
     boot_leds();
     timer5_start();

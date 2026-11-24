@@ -193,6 +193,9 @@ static int midi_enqueue(uint32_t pkt, uint32_t source)
 
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
+#if FELUCCA_TRS_OUT
+    trs_out_event(pkt);                                /* (midi_trs_out.c: the TRS jack too, USB or not) */
+#endif
     if (usb.config && mo_w - mo_r < MQ) {
         midi_out_q[mo_w % MQ] = pkt;
         RING_PUBLISH();

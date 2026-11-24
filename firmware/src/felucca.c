@@ -33,6 +33,9 @@
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 */
 #endif
 #endif
+#ifndef FELUCCA_TRS_OUT
+#define FELUCCA_TRS_OUT BOARD_SMK37  /* SMK-37: MIDI OUT on the TRS jack (UART1 TX, PC7) */
+#endif
 #if BOARD_SMK37 && FELUCCA_UART
 #error "BOARD_SMK37: midi_uart.c is the FM-1 MIDI IN driver (RX on PH8, a key-matrix row on the SMK)"
 #endif
@@ -99,6 +102,10 @@
 #include "fx.c"
 
 /* ------------------------------------------------- MIDI, sequencer --- */
+#if FELUCCA_TRS_OUT
+#include "../hal/fm1_uart.h"
+#include "midi_trs_out.c"
+#endif
 #include "usb.c"
 #if FELUCCA_UART
 #include "midi_uart.c"
