@@ -16,6 +16,7 @@ black cat, a fox, a little Modular Town robot or a goldfish. No banks, no submen
   (Chrome or Edge, a USB cable, nothing else)
 - **Page:** [bunglesociety.github.io/modular-compagnon](https://bunglesociety.github.io/modular-compagnon/)
 - **Firmware:** `modular-compagnon-VERSION.fwsc` in the [Releases](https://github.com/bunglesociety/modular-compagnon/releases)
+- **On the M-VAVE FM-1:** Modular Compagnon FM-1, [bunglesociety.github.io/modular-compagnon/fm1](https://bunglesociety.github.io/modular-compagnon/fm1/) (0.9 beta; its source in the release `fm1-v0.9-beta`)
 - Its big brother on the M-VAVE FM-1: [Modular One](https://bunglesociety.github.io/modular-one/)
 
 ## Les commandes · The controls
@@ -34,11 +35,12 @@ black cat, a fox, a little Modular Town robot or a goldfish. No banks, no submen
 | F3 · F4 | Temps de l'écho (libre ; il glisse comme un écho analogique) · écho | Echo time (free; it glides like an analog delay) · echo |
 | Knob bank · Fader bank | Onde 1 · onde 2 (la touche s'allume sur les sons qui en ont) | Wave 1 · wave 2 (the button lights up on the sounds that have them) |
 | Oct − / + | L'octave | Octave |
-| Arp | Un appui : on / off. Maintenu : K2 le mode, K3 la vitesse, K4 le tempo. Suit l'horloge MIDI d'un DAW tout seul (USB ou TRS) | A tap: on / off. Held: K2 the mode, K3 the speed, K4 the tempo. Follows a DAW's MIDI clock by itself (USB or TRS) |
+| Arp | Un appui : on / off. Maintenu : K2 le mode, K3 la vitesse, K4 le tempo. Suit l'horloge MIDI d'un DAW tout seul (USB) | A tap: on / off. Held: K2 the mode, K3 the speed, K4 the tempo. Follows a DAW's MIDI clock by itself (USB) |
 | Chord | Un LA 440 pour accorder un instrument (un deuxième appui l'arrête) | An A 440 to tune an instrument to (press again to stop) |
 | FX | Le vintage : pleurage de bande, saturation, aigus adoucis | Vintage: tape wow, saturation, softened highs |
 | Globe | Réglages (K2 à K8) : canal MIDI, vélocité, accordage, lumière des pads, veille, humeur, compagnon | Settings (K2 to K8): MIDI channel, velocity, tuning, pad light, sleep, mood, companion |
 | Molettes · Wheels | La modulation fait onduler le filtre ; le pitch est désactivé | Modulation waves the filter; pitch is off |
+| Prise jack · Jack | Sortie MIDI (1.1) : tout ce qui sort par l'USB sort aussi par là, avec ou sans ordinateur (jack 3,5 mm stéréo ; type A ou B pas encore vérifié) | MIDI out (1.1): everything that goes out by USB goes out there too, with or without a computer (3.5 mm stereo jack; type A or B not yet checked) |
 
 Repeat, Scale, Play, Rec, `<` `>` : rien · nothing.
 
@@ -79,13 +81,13 @@ Built on [Felucca](https://github.com/hugelton/Felucca) 1.6.1 by Leo Kuroshita (
 its SMK-37 board layer. See [BUILDING.md](BUILDING.md) for the toolchain (the JieLi AC79 SDK is not in this tree), then:
 
 ```sh
-BOARD=smk37 MODEL=elite ./build.sh          # -> build/modular-compagnon-smk37-elite.fwsc
+BOARD=smk37 MODEL=elite ./build.sh --release 1.1   # -> build/modular-compagnon-smk37-elite-1.1.fwsc
 tests/run_tests.sh
 cc -O1 -w -DMODULAR_ONE=1 -DFELUCCA_SLICE=0 -Ibuild/gen -Ifirmware/src -Itests -o build/host/m1_shots tests/m1_shots.c -lm
 build/host/m1_shots build/shots && python3 tools/make_compagnon_img.py build/shots web/compagnon/img   # the screen pictures
 python3 tools/make_controls_img.py          # the controls picture
-python3 tools/make_m1_installer.py build/modular-compagnon-smk37-elite.fwsc Modular-Compagnon.html 1.0   # one-file installer
-python3 tools/make_compagnon_site.py build/modular-compagnon-smk37-elite.fwsc 1.0 site/                  # GitHub Pages
+python3 tools/make_m1_installer.py build/modular-compagnon-smk37-elite-1.1.fwsc Modular-Compagnon.html 1.1   # one-file installer
+python3 tools/make_compagnon_site.py build/modular-compagnon-smk37-elite-1.1.fwsc 1.1 site/                  # GitHub Pages
 ```
 
 The Modular Compagnon code: `firmware/src/m1_ui.c` (the controls, GLOBE, the ARP), `firmware/src/m1_draw.c` (the screen,
