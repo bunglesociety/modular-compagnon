@@ -899,7 +899,7 @@ document.querySelectorAll("[data-lang]").forEach((a) => a.addEventListener("clic
 const sayK = (k, arg = "", bad = false) => { lastKey = k; lastArg = arg; lastBad = bad; $("status").textContent = t(k) + arg; $("status").className = bad ? "bad" : ""; };
 const log = (s) => { $("log").textContent += s + "\n"; };
 const bar = (f) => { $("bar").style.width = `${Math.max(0, Math.min(100, f))}%`; };
-const meta = {"version": "1.0", "product": "SMK-37 Elite_900", "family": "compagnon", "name": "Modular Compagnon", "pkg": "../firmware/modular-compagnon-1.0.fwsc"};
+const meta = {"version": "1.1", "product": "SMK-37 Elite_911", "family": "compagnon", "name": "Modular Compagnon", "pkg": "../firmware/modular-compagnon-1.1.fwsc"};
 if (meta.local) $("home").href = "https://bunglesociety.github.io/modular-compagnon/";
 applyLang();
 let image = null, stock = null, busy = false;
